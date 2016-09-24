@@ -1,0 +1,347 @@
+let __CFUNC__print "print"
+let __STR__0000 "%s   "
+let __STR__0001 "\n\n"
+let __STR__0002 "  "
+let __STR__0003 "X "
+let __STR__0004 "\n"
+let __CFUNC__println "println"
+let __STR__0005 "%f mapped from [%f, %f] to [%f, %f] is %f"
+let __STR__0006 "\niterative factorial of %d calculated to be: %d"
+let __STR__0007 "recursive factorial of %d calculated to be: %d"
+let __STR__0008 "recursive fibonacci of %d calculated to be: %d\n"
+let __STR__0009 "now printing a grid of size %d x %d\n"
+let __STR__0010 "X"
+jmp __ENTRY_POINT__
+__FUNC__factorial_recursive:
+iarg 0
+res 0
+ilload 0 ; ----> n
+ipush 1
+icmp
+jz __LABEL__0001 ; ----> if condition jump
+ipush 1
+jmp __LABEL__0000 ; ----> return from factorial_recursive
+__LABEL__0001: ; if bottom
+ilload 0 ; ----> n
+ilload 0 ; ----> n
+ipush 1
+isub
+call __FUNC__factorial_recursive, 1
+imul
+jmp __LABEL__0000 ; ----> return from factorial_recursive
+__LABEL__0000: ; ----> return label
+iret
+__FUNC__factorial_iteration:
+iarg 0
+res 2
+ipush 1
+ilsave 1 ; ----> result
+ipush 0
+ilsave 2 ; ----> index
+__LABEL__0003: ; ----> while top
+ilload 0 ; ----> n
+ipush 1
+igt
+jz __LABEL__0004 ; ----> while condition jump
+ilload 1 ; ----> result
+ilload 0 ; ----> n
+imul
+ilsave 1 ; ----> result
+ilload 0 ; ----> n
+ipush 1
+isub
+ilsave 0 ; ----> n
+jmp __LABEL__0003 ; ----> while jump top
+__LABEL__0004: ; ----> while bottom
+ilload 1 ; ----> result
+jmp __LABEL__0002 ; ----> return from factorial_iteration
+__LABEL__0002: ; ----> return label
+iret
+__FUNC__fibonacci:
+iarg 0
+res 0
+ilload 0 ; ----> n
+ipush 0
+ile
+jz __LABEL__0006 ; ----> if condition jump
+ipush 0
+jmp __LABEL__0005 ; ----> return from fibonacci
+__LABEL__0006: ; if bottom
+ilload 0 ; ----> n
+ipush 1
+icmp
+ilload 0 ; ----> n
+ipush 2
+icmp
+lor
+jz __LABEL__0007 ; ----> if condition jump
+ipush 1
+jmp __LABEL__0005 ; ----> return from fibonacci
+__LABEL__0007: ; if bottom
+ilload 0 ; ----> n
+ipush 1
+isub
+call __FUNC__fibonacci, 1
+ilload 0 ; ----> n
+ipush 2
+isub
+call __FUNC__fibonacci, 1
+iadd
+jmp __LABEL__0005 ; ----> return from fibonacci
+__LABEL__0005: ; ----> return label
+iret
+__FUNC__print_grid:
+iarg 0
+iarg 1
+iarg 2
+res 1
+ilload 0 ; ----> x_dimension
+ilsave 3 ; ----> start_x
+__LABEL__0009: ; ----> while top
+ilload 1 ; ----> y_dimension
+ipush 0
+igt
+jz __LABEL__0010 ; ----> while condition jump
+__LABEL__0011: ; ----> while top
+ilload 0 ; ----> x_dimension
+ipush 0
+igt
+jz __LABEL__0012 ; ----> while condition jump
+ipush __STR__0000
+ilload 2 ; ----> grid_str
+ccall __CFUNC__print, 2
+ilload 0 ; ----> x_dimension
+ipush 1
+isub
+ilsave 0 ; ----> x_dimension
+jmp __LABEL__0011 ; ----> while jump top
+__LABEL__0012: ; ----> while bottom
+ipush __STR__0001
+ccall __CFUNC__print, 1
+ilload 1 ; ----> y_dimension
+ipush 1
+isub
+ilsave 1 ; ----> y_dimension
+ilload 3 ; ----> start_x
+ilsave 0 ; ----> x_dimension
+jmp __LABEL__0009 ; ----> while jump top
+__LABEL__0010: ; ----> while bottom
+__LABEL__0008: ; ----> return label
+iret
+__FUNC__map:
+iarg 0
+iarg 1
+iarg 2
+iarg 3
+iarg 4
+res 0
+flload 0 ; ----> n
+flload 1 ; ----> a
+fsub
+flload 2 ; ----> b
+flload 1 ; ----> a
+fsub
+fdiv
+flload 4 ; ----> d
+flload 3 ; ----> c
+fsub
+fmul
+flload 3 ; ----> c
+fadd
+jmp __LABEL__0013 ; ----> return from map
+__LABEL__0013: ; ----> return label
+iret
+__FUNC__mandel_draw:
+iarg 0
+iarg 1
+res 8
+ipush 0
+ilsave 2 ; ----> x_pos
+ipush 0
+ilsave 3 ; ----> y_pos
+__LABEL__0015: ; ----> while top
+ilload 3 ; ----> y_pos
+ilload 0 ; ----> size
+ilt
+jz __LABEL__0016 ; ----> while condition jump
+__LABEL__0017: ; ----> while top
+ilload 2 ; ----> x_pos
+ilload 0 ; ----> size
+ilt
+jz __LABEL__0018 ; ----> while condition jump
+ilload 2 ; ----> x_pos
+ipush 0
+ilload 0 ; ----> size
+ipush 0
+ipush 2
+isub
+ipush 1
+itof 4 ; ----> implicit cast int->float @ARG[0]
+itof 3 ; ----> implicit cast int->float @ARG[1]
+itof 2 ; ----> implicit cast int->float @ARG[2]
+itof 1 ; ----> implicit cast int->float @ARG[3]
+itof 0 ; ----> implicit cast int->float @ARG[4]
+call __FUNC__map, 5
+flsave 5 ; ----> px
+ilload 3 ; ----> y_pos
+ipush 0
+ilload 0 ; ----> size
+ipush 0
+fpush 1.5
+itof 1 ; ----> implicit cast int->float @[SP - 1]
+fsub
+fpush 1.5
+itof 4 ; ----> implicit cast int->float @ARG[0]
+itof 3 ; ----> implicit cast int->float @ARG[1]
+itof 2 ; ----> implicit cast int->float @ARG[2]
+call __FUNC__map, 5
+flsave 6 ; ----> py
+ilload 2 ; ----> x_pos
+ipush 1
+iadd
+ilsave 2 ; ----> x_pos
+ipush 0
+ilsave 4 ; ----> iter
+ipush 0
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 7 ; ----> zx
+ipush 0
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 8 ; ----> zy
+__LABEL__0019: ; ----> while top
+ilload 4 ; ----> iter
+ilload 1 ; ----> iterations
+ilt
+flload 7 ; ----> zx
+flload 7 ; ----> zx
+fmul
+flload 8 ; ----> zy
+flload 8 ; ----> zy
+fmul
+fadd
+ipush 4
+itof 0 ; ----> implicit cast int->float @[SP - 0]
+fle
+land
+jz __LABEL__0020 ; ----> while condition jump
+flload 7 ; ----> zx
+flload 8 ; ----> zy
+fmul
+flsave 9 ; ----> tmp
+flload 7 ; ----> zx
+flload 7 ; ----> zx
+fmul
+flload 8 ; ----> zy
+flload 8 ; ----> zy
+fmul
+fsub
+flload 5 ; ----> px
+fadd
+flsave 7 ; ----> zx
+flload 9 ; ----> tmp
+ipush 2
+itof 0 ; ----> implicit cast int->float @[SP - 0]
+fmul
+flload 6 ; ----> py
+fadd
+flsave 8 ; ----> zy
+ilload 4 ; ----> iter
+ipush 1
+iadd
+ilsave 4 ; ----> iter
+jmp __LABEL__0019 ; ----> while jump top
+__LABEL__0020: ; ----> while bottom
+ilload 4 ; ----> iter
+ilload 1 ; ----> iterations
+icmp
+jz __LABEL__0021 ; ----> if condition jump
+ipush __STR__0002
+ccall __CFUNC__print, 1
+__LABEL__0021: ; if bottom
+ilload 4 ; ----> iter
+ilload 1 ; ----> iterations
+ilt
+jz __LABEL__0022 ; ----> if condition jump
+ipush __STR__0003
+ccall __CFUNC__print, 1
+__LABEL__0022: ; if bottom
+jmp __LABEL__0017 ; ----> while jump top
+__LABEL__0018: ; ----> while bottom
+ipush __STR__0004
+ccall __CFUNC__print, 1
+ipush 0
+ilsave 2 ; ----> x_pos
+ilload 3 ; ----> y_pos
+ipush 1
+iadd
+ilsave 3 ; ----> y_pos
+jmp __LABEL__0015 ; ----> while jump top
+__LABEL__0016: ; ----> while bottom
+__LABEL__0014: ; ----> return label
+iret
+__FUNC__main:
+res 8
+ipush 6
+ilsave 0 ; ----> input
+ipush 15
+ilsave 1 ; ----> grid_x
+ipush 6
+ilsave 2 ; ----> grid_y
+ipush 20
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 3 ; ----> num_map
+ipush 10
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 4 ; ----> old_range_bottom
+ipush 30
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 5 ; ----> old_range_top
+ipush 50
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 6 ; ----> new_range_bottom
+ipush 100
+itof 0  ; ----> implicit cast float->int ASSIGNMENT
+flsave 7 ; ----> new_range_top
+ipush __STR__0005
+flload 3 ; ----> num_map
+flload 4 ; ----> old_range_bottom
+flload 5 ; ----> old_range_top
+flload 6 ; ----> new_range_bottom
+flload 7 ; ----> new_range_top
+flload 3 ; ----> num_map
+flload 4 ; ----> old_range_bottom
+flload 5 ; ----> old_range_top
+flload 6 ; ----> new_range_bottom
+flload 7 ; ----> new_range_top
+call __FUNC__map, 5
+ccall __CFUNC__println, 7
+ipush __STR__0006
+ilload 0 ; ----> input
+ilload 0 ; ----> input
+call __FUNC__factorial_iteration, 1
+ccall __CFUNC__println, 3
+ipush __STR__0007
+ilload 0 ; ----> input
+ilload 0 ; ----> input
+call __FUNC__factorial_recursive, 1
+ccall __CFUNC__println, 3
+ipush __STR__0008
+ilload 0 ; ----> input
+ilload 0 ; ----> input
+call __FUNC__fibonacci, 1
+ccall __CFUNC__println, 3
+ipush __STR__0009
+ilload 1 ; ----> grid_x
+ilload 2 ; ----> grid_y
+ccall __CFUNC__println, 3
+ilload 1 ; ----> grid_x
+ilload 2 ; ----> grid_y
+ipush __STR__0010
+call __FUNC__print_grid, 3
+ipush 50
+ipush 100
+call __FUNC__mandel_draw, 2
+__LABEL__0023: ; ----> return label
+iret
+__ENTRY_POINT__:
+call __FUNC__main, 0

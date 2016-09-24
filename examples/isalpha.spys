@@ -1,0 +1,39 @@
+let println "println"
+jmp main
+
+strcmp:
+	iarg	0
+	iarg	1
+ZZ00:
+	ilload	0x00
+	cder
+	ilload	0x01
+	cder
+	icmp
+	jnz		ZZ01
+	ipush	0
+	iret
+ZZ01:
+	ilload	0x00
+	cder
+	jnz		ZZ02
+	ipush	1
+	iret
+ZZ02:
+	ilload	0x00
+	icinc	1
+	ilsave	0x00
+	ilload	0x01
+	icinc	1
+	ilsave	0x01
+	jmp		ZZ00
+
+main:
+	let stra "hello"
+	let strb "hello"
+	let form "%d"
+	ipush stra
+	ipush strb
+	call strcmp, 2
+	ipush form
+	ccall println

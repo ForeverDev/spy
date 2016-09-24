@@ -1,0 +1,16 @@
+func int_func(x : int, y : int) -> null {
+	println("int function: %d, %d", x, y);
+}
+
+func float_func(x : float, y : float) -> null {
+	println("float function: %f, %f", x, y);
+}
+
+func main() -> null {
+	x : int;
+
+	x = 10 * 13.5;
+
+	int_func(x, 7);	
+	float_func(5.5, 7);
+}
