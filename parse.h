@@ -14,9 +14,10 @@ typedef struct TreeBlock TreeBlock;
 typedef struct TreeNode TreeNode;
 typedef struct TreeIf TreeIf;
 typedef struct TreeWhile TreeWhile;
-typedef struct TreeFunc TreeFunc;
+typedef struct TreeFunction TreeFunction;
 typedef struct TreeRoot TreeRoot;
 typedef struct TreeAssign TreeAssign;
+typedef struct TreeStatement TreeStatement;
 typedef struct TreeDecl TreeDecl;
 typedef struct TreeDatatype TreeDatatype;
 typedef struct ParseState ParseState;
@@ -25,8 +26,9 @@ typedef enum NodeType NodeType;
 enum NodeType {
 	NODE_IF,
 	NODE_WHILE,
-	NODE_FUNC,
+	NODE_FUNCTION,
 	NODE_ASSIGN,
+	NODE_STATEMENT,
 	NODE_ROOT
 };
 
@@ -46,6 +48,10 @@ struct TreeAssign {
 	Token* rhs;
 };
 
+struct TreeStatement {
+	Token* statement;
+};
+
 struct TreeIf {
 	Token* condition;
 	TreeBlock* block;
@@ -56,7 +62,7 @@ struct TreeWhile {
 	TreeBlock* block;
 };
 
-struct TreeFunc {
+struct TreeFunction {
 	char* identifier;
 	TreeDatatype* return_type;
 	TreeDecl* arguments;
@@ -80,7 +86,8 @@ struct TreeNode {
 	union {
 		TreeIf* pif;
 		TreeWhile* pwhile;
-		TreeFunc* pfunc;
+		TreeFunction* pfunc;
+		TreeStatement* pstate;
 		TreeAssign* pass;
 		TreeRoot* proot;
 	};

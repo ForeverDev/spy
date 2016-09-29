@@ -16,6 +16,7 @@ static void list_tokens(Token*);
 static void parse_error(ParseState*, const char*, ...);
 static uint32_t read_modifier(ParseState*);
 static int check_datatype(const char*);
+static int is_keyword(ParseState*);
 
 static TreeNode* new_node(ParseState*, NodeType);
 static Token* parse_until(ParseState*, unsigned int);
@@ -23,14 +24,27 @@ static Token* parse_count(ParseState*, unsigned int, unsigned int);
 static TreeDecl* parse_decl(ParseState*);
 static TreeDatatype* parse_datatype(ParseState*);
 
+static const char* keywords[32] = {
+	"func", "if", "while", "for", "do",
+	"break", "continue", "return"
+};
+
 static void
 parse_error(ParseState* P, const char* format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	printf("\n\n\n*** SPYRE COMPILE-TIME ERROR ***\n\nmessage: ");
+	printf("<");
+	for (int i = 0; i < 40; i++) {
+		fputc('-', stdout);	
+	}
+	printf(">\n\n\n*** SPYRE COMPILE-TIME ERROR ***\n\nMESSAGE:  ");
 	vprintf(format, args);
-	printf("\nline: %d\n\n\n", P->token->line);
+	printf("\nLINE:     %d\nTOKEN:    %s\n\n\n<", P->token->line, P->token->word);
+	for (int i = 0; i < 40; i++) {
+		fputc('-', stdout);	
+	}
+	printf(">\n");
 
 	va_end(args);
 	exit(1);
@@ -44,6 +58,16 @@ check_datatype(const char* datatype) {
 		!strcmp(datatype, "string") ||
 		!strcmp(datatype, "null")
 	);
+}
+
+static int
+is_keyword(ParseState* P) {
+	for (const char** i = &keywords[0]; *i; i++) {
+		if (!strcmp(P->token->word, *i)) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static uint32_t
@@ -112,7 +136,7 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 					printf("{}\n");
 				}
 				break;
-			case NODE_FUNC:
+			case NODE_FUNCTION:
 				printf("TYPE: FUNCTION\n");
 				INDENT(1);
 				printf("IDENTIFIER: %s\n", i->pfunc->identifier);
@@ -149,6 +173,7 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 				}
 				break;
 			case NODE_ASSIGN:
+				printf("TYPE: ASSIGNMENT\n");
 				INDENT(1);
 				printf("LHS: ");
 				for (Token* j = i->pass->lhs; j; j = j->next) {
@@ -160,6 +185,16 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 				for (Token* j = i->pass->rhs; j; j = j->next) {
 					printf("%s ", j->word);
 				}
+				printf("\n");
+				break;
+			case NODE_STATEMENT:
+				printf("TYPE: STATEMENT\n");
+				INDENT(1);
+				printf("EXPRESSION: ");
+				for (Token* j = i->pstate->statement; j; j = j->next) {
+					printf("%s ", j->word);
+				}
+				printf("\n");
 				break;
 			case NODE_ROOT:
 				break;
@@ -212,6 +247,9 @@ parse_until(ParseState* P, unsigned int type) {
 	expression->prev = NULL;
 	P->token = P->token->next;
 	for (; P->token->type != type; P->token = P->token->next) {
+		if (is_keyword(P)) {
+			parse_error(P, "unexpected keyword '%s' in expression, did you forget a semicolon?", P->token->word);
+		}
 		Token* copy = malloc(sizeof(Token));
 		memcpy(copy, P->token, sizeof(Token));
 		copy->next = NULL;
@@ -278,8 +316,8 @@ new_node(ParseState* P, NodeType type) {
 			node->pwhile->block->parent_node = node;
 			node->pwhile->block->children = NULL;
 			break;
-		case NODE_FUNC:
-			node->pfunc = malloc(sizeof(TreeFunc));
+		case NODE_FUNCTION:
+			node->pfunc = malloc(sizeof(TreeFunction));
 			node->pfunc->identifier = NULL;
 			node->pfunc->return_type = NULL;
 			node->pfunc->arguments = NULL;
@@ -292,6 +330,10 @@ new_node(ParseState* P, NodeType type) {
 			node->pass->lhs = NULL;
 			node->pass->rhs = NULL;
 			break;	
+		case NODE_STATEMENT:
+			node->pstate = malloc(sizeof(TreeStatement));
+			node->pstate->statement = NULL;
+			break;
 		case NODE_ROOT:
 			break;
 	}
@@ -321,7 +363,7 @@ parse_while(ParseState* P) {
 static void
 parse_function(ParseState* P) {
 	/* expects to start on token FUNC */
-	TreeNode* node = new_node(P, NODE_FUNC);
+	TreeNode* node = new_node(P, NODE_FUNCTION);
 	P->token = P->token->next;
 	node->pfunc->identifier = P->token->word;
 	P->token = P->token->next->next;
@@ -378,7 +420,8 @@ parse_statement(ParseState* P) {
 		free(assign_token);
 	/* handle statement */
 	} else {
-
+		node = new_node(P, NODE_STATEMENT);
+		node->pstate->statement = statement;
 	}
 	append_to_block(P, node);
 }

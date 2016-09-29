@@ -4,6 +4,7 @@
 #include "assembler.h"
 #include "lex.h"
 #include "parse.h"
+#include "generate.h"
 
 int main(int argc, char** argv) {
 
@@ -22,7 +23,7 @@ int main(int argc, char** argv) {
 		} else if (!strncmp(argv[1], "c", 1)) {
 			Token* tokens = generate_tokens(argv[2]);	
 			TreeNode* tree = generate_tree(tokens);
-			/* generate_bytecode(tree, "examples/test.spys"); */
+			generate_bytecode(tree, "examples/test.spys"); 
 		}
 	} else {
 		/*
