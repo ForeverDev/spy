@@ -7,6 +7,7 @@
 static void parse_if(ParseState*);
 static void parse_while(ParseState*);
 static void parse_function(ParseState*);
+static void parse_statement(ParseState*);
 static void jump_out(ParseState*);
 static void jump_in(ParseState*, TreeBlock*);
 static void string_token(Token*, Token*);
@@ -63,6 +64,7 @@ read_modifier(ParseState* P) {
 	} else {
 		parse_error(P, "unknown variable modifier '%s'", mod);
 	}
+	return 0;
 }
 
 static void
@@ -146,8 +148,25 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 					printf("{}\n");
 				}
 				break;
+			case NODE_ASSIGN:
+				INDENT(1);
+				printf("LHS: ");
+				for (Token* j = i->pass->lhs; j; j = j->next) {
+					printf("%s ", j->word);
+				}
+				printf("\n");
+				INDENT(1);
+				printf("RHS: ");
+				for (Token* j = i->pass->rhs; j; j = j->next) {
+					printf("%s ", j->word);
+				}
+				break;
+			case NODE_ROOT:
+				break;
 		}
-		printf("\n");
+		if (i->next) {
+			printf("\n");
+		}
 	}
 	INDENT(0);
 	printf("}\n");
@@ -243,6 +262,7 @@ new_node(ParseState* P, NodeType type) {
 	TreeNode* node = malloc(sizeof(TreeNode));
 	node->type = type;
 	node->next = NULL;
+	node->parent_block = P->block;	
 	switch (type) {
 		case NODE_IF:
 			node->pif = malloc(sizeof(TreeIf));
@@ -250,7 +270,6 @@ new_node(ParseState* P, NodeType type) {
 			node->pif->block = malloc(sizeof(TreeBlock));
 			node->pif->block->parent_node = node;
 			node->pif->block->children = NULL;
-			node->parent_block = P->block;
 			break;
 		case NODE_WHILE:
 			node->pwhile = malloc(sizeof(TreeWhile));
@@ -258,7 +277,6 @@ new_node(ParseState* P, NodeType type) {
 			node->pwhile->block = malloc(sizeof(TreeBlock));
 			node->pwhile->block->parent_node = node;
 			node->pwhile->block->children = NULL;
-			node->parent_block = P->block;
 			break;
 		case NODE_FUNC:
 			node->pfunc = malloc(sizeof(TreeFunc));
@@ -268,7 +286,13 @@ new_node(ParseState* P, NodeType type) {
 			node->pfunc->block = malloc(sizeof(TreeBlock));
 			node->pfunc->block->parent_node = node;
 			node->pfunc->block->children = NULL;
-			node->parent_block = P->block;
+			break;
+		case NODE_ASSIGN:
+			node->pass = malloc(sizeof(TreeAssign));
+			node->pass->lhs = NULL;
+			node->pass->rhs = NULL;
+			break;	
+		case NODE_ROOT:
 			break;
 	}
 	return node;
@@ -326,6 +350,39 @@ parse_function(ParseState* P) {
 	jump_in(P, node->pfunc->block);
 }
 
+static void
+parse_statement(ParseState* P) {
+	TreeNode* node;
+	Token* statement = parse_until(P, TYPE_SEMICOLON);
+	/* check if there is an assignment operator */
+	Token* assign_token = NULL;
+	for (Token* i = statement; i; i = i->next) {
+		if (i->type == TYPE_ASSIGN) {
+			assign_token = i;
+			break;
+		}
+	}
+	/* handle assignment */
+	if (assign_token) {
+		/* we're going to split this into the LHS and RHS...
+		 * the way this will happen is we will set the last token
+		 * in the LHS->next to NULL because it points to
+		 * assign_token, then set the assign_token->next->prev to NULL
+		 * and assign that to RHS, then free the '=' token
+		 */
+		node = new_node(P, NODE_ASSIGN);
+		node->pass->lhs = statement;
+		node->pass->rhs = assign_token->next;
+		assign_token->next->prev = NULL;
+		assign_token->prev->next = NULL;
+		free(assign_token);
+	/* handle statement */
+	} else {
+
+	}
+	append_to_block(P, node);
+}
+
 TreeNode*
 generate_tree(Token* tokens) {
 	
@@ -358,6 +415,9 @@ generate_tree(Token* tokens) {
 				if (!P->block) {
 					goto finished;
 				}
+				break;
+			default:
+				parse_statement(P);
 				break;
 		}
 	}
