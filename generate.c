@@ -1,7 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include "generate.h"
+
+#define LABEL_FORMAT "__LABEL__%d"
+#define DEF_LABEL LABEL_FORMAT ":"
+#define JIF_LABEL "jif " LABEL_FORMAT
+#define JIT_LABEL "jit " LABEL_FORMAT
+#define JMP_LABEL "jmp " LABEL_FORMAT
 
 typedef struct ExpNode ExpNode;
 typedef struct ExpStack ExpStack;
@@ -42,6 +49,10 @@ static int block_empty(CompileState*);
 static const char* focus_tostring(CompileState*);
 static ExpNode* infix_to_postfix(CompileState*, Token*);
 static void generate_if(CompileState*);
+static void push_instruction(CompileState*, const char*, ...);
+static StringList* pop_instruction(CompileState*);
+static void write(CompileState*, const char*, ...);
+static void generate_expression(CompileState*, ExpNode*);
 
 /* ExpStack functions */
 static void exp_push(ExpStack**, ExpNode*);
@@ -76,7 +87,7 @@ exp_pop(ExpStack** stack) {
 	if (i->prev) {
 		i->prev->next = NULL;
 	}
-	free(i);
+	//free(i);
 	return ret;
 }
 
@@ -86,6 +97,76 @@ exp_top(ExpStack** stack) {
 	ExpStack* i;
 	for (i = *stack; i->next; i = i->next);
 	return i->value;
+}
+
+static void
+push_instruction(CompileState* C, const char* format, ...) {
+	va_list args;
+	va_start(args, format);
+
+	char* instruction = malloc(128);
+	vsprintf(instruction, format, args);
+
+	va_end(args);
+
+	if (!C->ins_stack) {
+		InsStack* new = malloc(sizeof(InsStack));
+		new->depth = C->depth;
+		new->next = NULL;
+		new->prev = NULL;
+		new->instruction = malloc(sizeof(StringList));
+		new->instruction->str = instruction;
+		new->instruction->next = NULL;
+		C->ins_stack = new;
+		return;	
+	}
+
+	StringList* new_str = malloc(sizeof(StringList));
+	new_str->str = instruction;
+	new_str->next = NULL;
+
+	InsStack* read;
+	for (read = C->ins_stack; read->next; read = read->next);
+	if (read->depth != C->depth) {
+		/* push a new stack */
+		InsStack* new_stack = malloc(sizeof(InsStack));
+		new_stack->instruction = new_str;
+		new_stack->depth = C->depth;
+		new_stack->next = NULL;
+		read->next = new_stack;
+		new_stack->prev = read;
+	} else {
+		/* append to stack */
+		StringList* list;
+		for (list = read->instruction; list->next; list = list->next);
+		list->next = new_str;
+	}
+}
+
+static StringList*
+pop_instruction(CompileState* C) {
+	if (!C->ins_stack) {
+		return NULL;
+	}
+	InsStack* read;
+	StringList* ret;
+	for (read = C->ins_stack; read->next; read = read->next);
+	if (read->prev) {
+		read->prev->next = NULL;
+	} else {
+		C->ins_stack = NULL;
+	}
+	ret = read->instruction;
+	//free(read);
+	return ret;	 
+}
+
+static void
+write(CompileState* C, const char* format, ...) {
+	va_list args;
+	va_start(args, format);
+	vfprintf(C->fout, format, args);
+	va_end(args);	
 }
 
 static void
@@ -160,6 +241,7 @@ advance(CompileState* C) {
 			break;
 	}
 	if (should_dive) {
+		C->depth++;
 		C->focus = (
 			C->focus->type == NODE_ROOT ? C->focus->proot->block->children :
 			C->focus->type == NODE_IF ? C->focus->pif->block->children :
@@ -182,7 +264,13 @@ advance(CompileState* C) {
 		if (!C->focus->parent_block->parent_node) {
 			break;
 		}
+		C->depth--;
 		C->focus = C->focus->parent_block->parent_node;
+		if (C->ins_stack) {
+			for (StringList* i = pop_instruction(C); i; i = i->next) {
+				write(C, i->str);
+			}
+		}
 	}
 	if (!C->focus->next) {
 		return 0;
@@ -268,10 +356,31 @@ infix_to_postfix(CompileState* C, Token* expression) {
 	return postfix->value;
 }
 
+/* converts an expression in postfix to bytecode...
+ * use infix_to_postfix before calling to convert an
+ * infix expression to a postfix expression 
+ */
+static void
+generate_expression(CompileState* C, ExpNode* expression) {
+
+}
+
 static void
 generate_if(CompileState* C) {
-	ExpNode* condition = infix_to_postfix(C, C->focus->pif->condition);	
-	print_expression(condition);
+	unsigned int label = C->label_count++;
+	generate_expression(C, infix_to_postfix(C, C->focus->pif->condition));
+	write(C, JIF_LABEL "\n", label);
+	push_instruction(C, DEF_LABEL "\n", label);
+}
+
+static void
+generate_while(CompileState* C) {
+	unsigned int top_label = C->label_count++;
+	unsigned int done_label = C->label_count++;
+	write(C, DEF_LABEL "\n", top_label);
+	generate_expression(C, infix_to_postfix(C, C->focus->pwhile->condition));
+	write(C, JIF_LABEL "\n", done_label);
+	push_instruction(C, DEF_LABEL "\n", done_label);
 }
 
 void
@@ -280,7 +389,9 @@ generate_bytecode(TreeNode* tree, const char* fout_name) {
 	CompileState* C = malloc(sizeof(CompileState));
 	C->root = tree; 
 	C->focus = tree;
-	C->fout = fopen(fout_name, "rb");
+	C->fout = fopen(fout_name, "wb");
+	C->ins_stack = NULL;
+	C->depth = 0;
 	if (!C->fout) {
 		printf("couldn't open output file '%s' for writing\n", fout_name);
 		exit(1);

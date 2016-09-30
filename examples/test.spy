@@ -1,7 +1,9 @@
 func sample(a : static const int, b : int) -> null {
 
 	if x == example * 13 {
+		if z == test {
 
+		}
 	}
 
 }
