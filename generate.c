@@ -3,9 +3,9 @@
 #include <string.h>
 #include "generate.h"
 
-
 typedef struct ExpNode ExpNode;
 typedef struct ExpStack ExpStack;
+typedef struct ExpOperator ExpOperator;
 typedef enum ExpType ExpType;
 
 enum ExpType {
@@ -15,8 +15,14 @@ enum ExpType {
 	EXP_TOKEN
 };
 
+struct ExpOperator {
+	unsigned int pres;
+	unsigned int assoc;
+};
+
 struct ExpNode {
 	ExpType type;
+	ExpNode* next;
 	union {
 		Token* ptoken;
 		ExpNode* pfunc;
@@ -30,6 +36,7 @@ struct ExpStack {
 	ExpStack* prev;
 };
 
+static void print_expression(ExpNode*);
 static int advance(CompileState*);
 static int block_empty(CompileState*);
 static const char* focus_tostring(CompileState*);
@@ -38,7 +45,8 @@ static void generate_if(CompileState*);
 
 /* ExpStack functions */
 static void exp_push(ExpStack**, ExpNode*);
-static ExpNode* exp_pop(ExpStack*);
+static ExpNode* exp_pop(ExpStack**);
+static ExpNode* exp_top(ExpStack**);
 
 static void
 exp_push(ExpStack** stack, ExpNode* node) {
@@ -52,7 +60,6 @@ exp_push(ExpStack** stack, ExpNode* node) {
 	ExpStack* new = malloc(sizeof(ExpStack));
 	new->value = node;
 	new->next = NULL;
-	new->prev = NULL;
 	ExpStack* i;
 	for (i = *stack; i->next; i = i->next);
 	i->next = new;
@@ -60,13 +67,43 @@ exp_push(ExpStack** stack, ExpNode* node) {
 }
 
 static ExpNode*
-exp_pop(ExpStack* stack) {
+exp_pop(ExpStack** stack) {
+	if (!(*stack)) return NULL;
 	ExpStack* i;
-	for (i = stack; i->next; i = i->next);
-	i->prev->next = NULL;
+	for (i = *stack; i->next; i = i->next);
+	if (!(*stack)->next) *stack = NULL;
 	ExpNode* ret = i->value;
+	if (i->prev) {
+		i->prev->next = NULL;
+	}
 	free(i);
 	return ret;
+}
+
+static ExpNode*
+exp_top(ExpStack** stack) {
+	if (!(*stack)) return NULL;
+	ExpStack* i;
+	for (i = *stack; i->next; i = i->next);
+	return i->value;
+}
+
+static void
+print_expression(ExpNode* expression) {
+	char* out;
+	for (ExpNode* i = expression; i; i = i->next) {
+		switch (i->type) {
+			case EXP_NOTYPE:
+			case EXP_FUNC_CALL:
+			case EXP_ARRAY_INDEX:
+				break;
+			case EXP_TOKEN:	
+				out = i->ptoken->word;
+				break;
+		}
+		printf("%s ", out);
+	}
+	printf("\n");
 }
 
 /* returns a string representing the type of C->focus */
@@ -156,16 +193,85 @@ advance(CompileState* C) {
 
 static ExpNode*
 infix_to_postfix(CompileState* C, Token* expression) {
-	ExpNode* node = calloc(1, sizeof(ExpNode));	
+
+	static const ExpOperator ops[256] = {
+		[TYPE_COMMA]		= {1, 1},
+		[TYPE_ASSIGN]		= {2, 1},
+		[TYPE_LOGAND]		= {2, 1},
+		[TYPE_LOGOR]		= {2, 1},
+		[TYPE_EQ]			= {3, 1},
+		[TYPE_NOTEQ]		= {3, 1},
+		[TYPE_PERIOD]		= {4, 1},
+		[TYPE_GT]			= {5, 1},
+		[TYPE_GE]			= {5, 1},
+		[TYPE_LT]			= {5, 1},
+		[TYPE_LE]			= {5, 1},
+		[TYPE_AMPERSAND]	= {6, 1},
+		[TYPE_LINE]			= {6, 1},
+		[TYPE_XOR]			= {6, 1},
+		[TYPE_SHL]			= {6, 1},
+		[TYPE_SHR]			= {6, 1},
+		[TYPE_PLUS]			= {7, 1},
+		[TYPE_HYPHON]		= {7, 1},
+		[TYPE_ASTER]		= {8, 1},
+		[TYPE_PERCENT]		= {8, 1},
+		[TYPE_FORSLASH]		= {8, 1}
+	};
+	
+	/* implement shunting yard algorithm for expressions */
+	ExpStack* postfix = NULL;	
+	ExpStack* operators = NULL;
+	ExpNode* node;
 	for (Token* i = expression; i; i = i->next) {
-		
+		if (i->next && i->type == TYPE_IDENTIFIER && i->next->type == TYPE_OPENPAR) {
+
+		} else if (i->type == TYPE_OPENPAR) {
+			node = malloc(sizeof(ExpNode));
+			node->type = EXP_TOKEN;
+			node->ptoken = i;
+			exp_push(&operators, node);
+		/* assoc is used to see if it exists, because all operators
+		 * should have a non-zero assoc
+		 */
+		}  else if (ops[i->type].assoc) {
+			while (operators
+				   && exp_top(&operators)->ptoken->type != TYPE_OPENPAR
+				   && ops[i->type].pres <= ops[exp_top(&operators)->ptoken->type].pres
+			) {
+				exp_push(&postfix, exp_pop(&operators));
+			}
+			node = malloc(sizeof(ExpNode));	
+			node->type = EXP_TOKEN;
+			node->ptoken = i;
+			exp_push(&operators, node);
+		} else if (i->type == TYPE_IDENTIFIER || i->type == TYPE_NUMBER) {
+			node = malloc(sizeof(ExpNode));
+			node->type = EXP_TOKEN;
+			node->ptoken = i;
+			exp_push(&postfix, node);
+		} else if (i->type == TYPE_CLOSEPAR) {
+			while (operators && exp_top(&operators)->ptoken->type != TYPE_OPENPAR) {
+				exp_push(&postfix, exp_pop(&operators));	
+			}
+			exp_pop(&operators);
+		}
 	}
-	return node;
+
+	while (operators) {
+		exp_push(&postfix, exp_pop(&operators));
+	}
+
+	for (ExpStack* i = postfix; i->next; i = i->next) {
+		i->value->next = i->next->value;
+	}
+
+	return postfix->value;
 }
 
 static void
 generate_if(CompileState* C) {
-	
+	ExpNode* condition = infix_to_postfix(C, C->focus->pif->condition);	
+	print_expression(condition);
 }
 
 void

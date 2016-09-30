@@ -1,11 +1,8 @@
 func sample(a : static const int, b : int) -> null {
-	x = 10->10 + "hello";
-	x();
-	if a == b {
-		meme();
-	}
-	while 5.0 {
+
+	if x == example * 13 {
 
 	}
+
 }
 
