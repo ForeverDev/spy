@@ -550,9 +550,54 @@ generate_expression(CompileState* C, ExpNode* expression) {
 				exp_push(&stack, i);
 				write(C, "ilload %d\n", i->pvariable->offset);
 				break;
-			case EXP_IDENTIFIER:
-				exp_push(&stack, i);
+			case EXP_IDENTIFIER: {
+				TreeDecl* local = find_local(C, i->pidentifier->word);
+				ExpNode* node = malloc(sizeof(ExpNode));
+				node->next = NULL;
+				if (local) {
+					TreeStruct* type = find_type(C, local->datatype->type_name);
+					if (type) {
+						node->type = EXP_STRUCT;
+						node->pstruct = type;
+						write(C, "ilea %d\n", local->offset);
+					} else {	
+						node->type = EXP_DATATYPE;
+						node->pdatatype = local->datatype;
+						write(C, "ilload %d\n", local->offset);
+					}
+				} else {
+				/* if it's not a local, it is either a member of a struct
+				 * or an undeclared identifier.... if it IS a member, it
+				 * must be a member of the struct on the top of the stack
+				 * so, we can pull the struct off the top and check if it
+				 * is a member
+				 */
+					ExpNode* top = exp_top(&stack);
+					int found_member = 0;
+					if (!top || top->type != EXP_STRUCT) {
+						compile_error(C, "the '.' operator can only be used on a struct");	
+					}
+					for (TreeDecl* j = top->pstruct->children; j; j = j->next) {
+						if (!strcmp(j->identifier, i->pidentifier->word)) {
+							/* no need to generate any code yet, it will
+							 * be handled by the . operator */
+							found_member = 1;
+							/* the type we push is insignificant because the .
+							 * operator does all the checking... just push it
+							 * as an identifier for now 
+							 */
+							node->type = EXP_IDENTIFIER;
+							node->pidentifier = i->pidentifier;
+							break;
+						}	
+					}
+					if (!found_member) {
+						compile_error(C, "undeclared identifier '%s'", i->pidentifier->word);
+					}
+				}
+				exp_push(&stack, node);
 				break;
+			}
 			case EXP_OPERATOR: 
 				for (int i = 0; i < 2; i++) {
 					if (!stack) {
@@ -598,6 +643,7 @@ generate_expression(CompileState* C, ExpNode* expression) {
 						 * otherwise, if pop[1] is an identifier, we know it's the first
 						 * period in the statement, e.g. (a.b)
 						 */
+						 /*
 						TreeDecl* children;
 						if (pop[1]->type == EXP_IDENTIFIER) {
 							TreeDecl* local = find_local(C, pop[1]->pidentifier->word);
@@ -608,27 +654,27 @@ generate_expression(CompileState* C, ExpNode* expression) {
 							if (!template) {
 								compile_error(C, "can't find type name of '%s'", local->identifier);
 							}
-							write(C, "ilea %d\n", local->offset);
 							children = template->children;
 						} else if (pop[1]->type == EXP_STRUCT) {
 							children = pop[1]->pstruct->children;
 						}
+						*/
 						/* scan through the children of the parent struct and look for the member */
-						for (TreeDecl* i = children; i; i = i->next) {
-							if (!strcmp(i->identifier, pop[0]->pidentifier->word)) {
+						for (TreeDecl* j = pop[1]->pstruct->children; j; j = j->next) {
+							if (!strcmp(j->identifier, pop[0]->pidentifier->word)) {
 								ExpNode* push = malloc(sizeof(ExpNode));
 								push->next = NULL;
-								write(C, "icinc %d\n", i->offset);
+								write(C, "icinc %d\n", j->offset);
 								TreeStruct* member_type;
 								/* if the member is a struct, don't dereference, it's not a prim. type */
-								if ((member_type = find_type(C, i->datatype->type_name))) {
+								if ((member_type = find_type(C, j->datatype->type_name))) {
 									push->type = EXP_STRUCT;
 									push->pstruct = member_type;
 								/* else, it is a primitive type, dereference */
 								} else {
 									write(C, "ider\n");
 									push->type = EXP_DATATYPE;
-									push->pdatatype = i->datatype;
+									push->pdatatype = j->datatype;
 								}
 								exp_push(&stack, push);
 								goto no_typecheck;

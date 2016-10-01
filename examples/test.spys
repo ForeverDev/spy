@@ -4,7 +4,10 @@ ilea 0
 icinc 2
 icinc 1
 ider
-ipush 0
+ilea 0
+icinc 2
+icinc 0
+ider
 igt
 jz __LABEL__1
 __LABEL__1:
