@@ -109,5 +109,6 @@ struct ParseState {
 };
 
 TreeNode* generate_tree(Token*);
+void parse_error(ParseState*, const char*, ...); /* exposed to generate.c */
 
 #endif
