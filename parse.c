@@ -298,6 +298,7 @@ parse_decl(ParseState* P) {
 	TreeDecl* decl = malloc(sizeof(TreeDecl));
 	decl->next = NULL;
 	decl->identifier = P->token->word;
+	decl->offset = 0; /* to be assigned specifically when parse_decl is called */
 	P->token = P->token->next->next; 
 	decl->datatype = parse_datatype(P);
 	/* ends on character after datatype */
@@ -393,11 +394,11 @@ parse_function(ParseState* P) {
 	/* only instantiate arguments if list isn't empty */
 	if (P->token->type != TYPE_CLOSEPAR) {
 		while (P->token->type != TYPE_CLOSEPAR) {
-			node->pfunc->nargs++;
 			if (P->token->type == TYPE_COMMA) {
 				P->token = P->token->next;
 			}
 			TreeDecl* arg = parse_decl(P);
+			arg->offset = node->pfunc->nargs++;
 			if (!node->pfunc->arguments) {
 				node->pfunc->arguments = arg;
 			} else {
@@ -452,7 +453,9 @@ parse_statement(ParseState* P) {
 	/* handle declaration */
 	} else if (is_decl) {
 		P->token = start; /* go back to statement.... kind of hacky */
-		register_local(P, parse_decl(P));
+		TreeDecl* decl = parse_decl(P);
+		decl->offset = P->func->nargs + P->func->nlocals;
+		register_local(P, decl);
 	/* handle statement */
 	} else {
 		node = new_node(P, NODE_STATEMENT);
@@ -474,6 +477,7 @@ generate_tree(Token* tokens) {
 	P->root->proot->block = malloc(sizeof(TreeBlock));
 	P->root->proot->block->parent_node = P->root;
 	P->root->proot->block->children = NULL;
+	P->root->proot->block->locals = NULL;
 	P->block = P->root->proot->block;
 	P->token = tokens;
 	P->func = NULL;

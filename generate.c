@@ -140,13 +140,11 @@ compile_error(CompileState* C, const char* format, ...) {
 static TreeDecl*
 find_local(CompileState* C, const char* identifier) {
 	/* first check if it is a function argument */
-	if (!C->func) {
-		/* TODO fix this shit */
-		compile_error(C, "can't reference another variable outside of a function");
-	}
-	for (TreeDecl* i = C->func->arguments; i; i = i->next) {
-		if (!strcmp(i->identifier, identifier)) {
-			return i;	
+	if (C->func) {
+		for (TreeDecl* i = C->func->arguments; i; i = i->next) {
+			if (!strcmp(i->identifier, identifier)) {
+				return i;	
+			}
 		}
 	}
 	/* if here, it's not a function argument, so search
@@ -170,7 +168,7 @@ push_instruction(CompileState* C, const char* format, ...) {
 	va_start(args, format);
 
 	char* instruction = malloc(128);
-	vsprintf(instruction, format, args);
+	vsprintf(instruction, format, args); 
 
 	va_end(args);
 
@@ -500,6 +498,9 @@ generate_expression(CompileState* C, ExpNode* expression) {
 					case TYPE_NUMBER:
 						write(C, "ipush %s\n", i->ptoken->word);
 						break;
+					case TYPE_IDENTIFIER:
+						write(C, "ilload %d\n", find_local(C, i->ptoken->word)->offset);
+						break;
 					case TYPE_EQ:
 						write(C, "icmp\n");
 						break;
@@ -562,6 +563,7 @@ static void
 generate_function_decl(CompileState* C) {
 	write(C, DEF_FUNC "\n", C->focus->pfunc->identifier);
 	C->return_label = C->label_count++;
+	C->func = C->focus->pfunc;
 	
 	/* load arguments onto the stack */
 	for (int i = 0; i < C->focus->pfunc->nargs; i++) {

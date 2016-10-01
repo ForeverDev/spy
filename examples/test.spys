@@ -1,22 +1,13 @@
 __FUNC__sample:
 iarg 0
 iarg 1
-res 2
-ipush 10
-ipush 7
-ipush 3
-iadd
-icmp
-jz __LABEL__1
-__LABEL__2:
-ipush 66
-ipush 33
-ipush 2
+res 3
+ilload 0
+ilload 3
+ilload 4
 imul
 icmp
-jz __LABEL__3
-jmp __LABEL__2
-__LABEL__3:
+jz __LABEL__1
 __LABEL__1:
 __LABEL__0:
 iret

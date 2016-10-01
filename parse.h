@@ -44,6 +44,7 @@ struct TreeDatatype {
 
 struct TreeDecl {
 	char* identifier;
+	unsigned int offset;
 	TreeDatatype* datatype;
 	TreeDecl* next;
 };
