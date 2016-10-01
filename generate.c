@@ -117,7 +117,29 @@ exp_top(ExpStack** stack) {
 
 static TreeDecl*
 find_local(CompileState* C, const char* identifier) {
-
+	/* first check if it is a function argument */
+	if (!C->func) {
+		/* TODO fix this shit */
+		parse_error(C, "can't reference another variable outside of a function");
+	}
+	for (TreeDecl* i = C->func->arguments; i; i = i->next) {
+		if (!strcmp(i->identifier, identifier)) {
+			return i;	
+		}
+	}
+	/* if here, it's not a function argument, so search
+	 * through the blocks upwards for the local
+	 */
+	TreeBlock* block = C->focus->parent_block;
+	while (block) {
+		for (TreeDecl* i = block->locals; i; i = i->next) {
+			if (!strcmp(i->identifier, identifier)) {
+				return i;	
+			}
+		}
+		block = block->parent_node->parent_block;
+	}
+	parse_error(C, "undeclared identifier '%s'", identifier);
 }
 
 static void
