@@ -1,11 +1,20 @@
-func sample(a : static const int, b : int) -> null {
-	
-	x : static const int;
-	y : static const float;
-	meme : int;
+datatype_one : struct { 
+	member_1 : float;
+	member_2 : float;
+}
 
-	if a == y * meme {
+datatype_two : struct {
+	field_1 : int;
+	field_2 : int;
+	field_3 : datatype_one; 
+};
+
+func main() -> null {
+
+	example : datatype_two;
+	
+	if example.field_3.member_2 > 0 {
+
 	}
 
 }
-

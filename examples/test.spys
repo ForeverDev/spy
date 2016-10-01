@@ -1,12 +1,11 @@
-__FUNC__sample:
-iarg 0
-iarg 1
-res 3
-ilload 0
-ilload 3
-ilload 4
-imul
-icmp
+__FUNC__main:
+res 4
+ilea 0
+icinc 2
+icinc 1
+ider
+ipush 0
+igt
 jz __LABEL__1
 __LABEL__1:
 __LABEL__0:

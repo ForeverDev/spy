@@ -8,6 +8,7 @@ static void parse_if(ParseState*);
 static void parse_while(ParseState*);
 static void parse_function(ParseState*);
 static void parse_statement(ParseState*);
+static void parse_struct_declaration(ParseState*);
 static void jump_out(ParseState*);
 static void jump_in(ParseState*, TreeBlock*);
 static void string_token(Token*, Token*);
@@ -16,8 +17,9 @@ static void list_tokens(Token*);
 static void register_local(ParseState*, TreeDecl*);
 static void parse_error(ParseState*, const char*, ...);
 static uint32_t read_modifier(ParseState*);
-static int check_datatype(const char*);
+static int check_datatype(ParseState*, const char*);
 static int is_keyword(ParseState*);
+static int get_variable_size(ParseState*, TreeDecl*);
 
 static TreeNode* new_node(ParseState*, NodeType);
 static Token* parse_until(ParseState*, unsigned int);
@@ -52,13 +54,37 @@ parse_error(ParseState* P, const char* format, ...) {
 }
 
 static int
-check_datatype(const char* datatype) {
-	return (
-		!strcmp(datatype, "int") ||
-		!strcmp(datatype, "float") ||
-		!strcmp(datatype, "string") ||
-		!strcmp(datatype, "null")
-	);
+get_variable_size(ParseState* P, TreeDecl* variable) {	
+	const char* type_name = variable->datatype->type_name;
+	if (!strcmp(type_name, "int") || !strcmp(type_name, "float")) {
+		return 1;
+	} 
+	/* it's a struct */
+	for (TreeStruct* i = P->defined_types; i; i = i->next) {
+		if (!strcmp(i->type_name, type_name)) {
+			printf("%s is %d\n", i->type_name, i->size);
+			return i->size;
+		}
+	}
+	return 0;
+}
+
+static int
+check_datatype(ParseState* P, const char* type_name) {
+	if (
+		!strcmp(type_name, "int") ||
+		!strcmp(type_name, "float") ||
+		!strcmp(type_name, "string") ||
+		!strcmp(type_name, "null")
+	) {
+		return 1;
+	}
+	for (TreeStruct* i = P->defined_types; i; i = i->next) {
+		if (!strcmp(i->type_name, type_name)) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static int
@@ -87,7 +113,12 @@ read_modifier(ParseState* P) {
 	} else if (!strcmp(mod, "static")) {
 		return MOD_STATIC;
 	} else {
-		parse_error(P, "unknown variable modifier '%s'", mod);
+		/* don't report failed modifier unless the datatype exists */
+		if (!check_datatype(P, mod)) {
+			parse_error(P, "unknown type name '%s'", mod);
+		} else {
+			parse_error(P, "unknown variable modifier '%s'", mod);
+		}
 	}
 	return 0;
 }
@@ -98,6 +129,7 @@ register_local(ParseState* P, TreeDecl* local) {
 		parse_error(P, "can't find a block to store local '%s'\n", local->identifier);
 	}
 	P->func->nlocals++;
+	P->func->reserve_space += get_variable_size(P, local);
 	local->next = NULL;
 	if (!P->block->locals) {
 		P->block->locals = local;
@@ -283,7 +315,7 @@ parse_datatype(ParseState* P) {
 	TreeDatatype* data = malloc(sizeof(TreeDatatype));
 	data->modifier = 0;
 	uint32_t mod;
-	while (!check_datatype(P->token->word) && (mod = read_modifier(P))) {
+	while (!check_datatype(P, P->token->word) && (mod = read_modifier(P))) {
 		data->modifier |= mod;
 	}
 	data->type_name = P->token->word;
@@ -344,6 +376,7 @@ new_node(ParseState* P, NodeType type) {
 			node->pfunc->arguments = NULL;
 			node->pfunc->nargs = 0;
 			node->pfunc->nlocals = 0;
+			node->pfunc->reserve_space = 0;
 			node->pfunc->block = malloc(sizeof(TreeBlock));
 			node->pfunc->block->parent_node = node;
 			node->pfunc->block->children = NULL;
@@ -464,7 +497,81 @@ parse_statement(ParseState* P) {
 	}
 }
 
-TreeNode*
+static void
+parse_struct_declaration(ParseState* P) {
+	/* expects to be on name of struct (syntax is (identifier : struct { ... })) */
+	TreeStruct* decl = malloc(sizeof(TreeStruct));
+	decl->type_name = P->token->word;
+	decl->children = NULL;
+	decl->next = NULL;
+	decl->size = 0;
+	P->token = P->token->next->next->next;
+	/* if it ends with a semicolon, it's an imcomplete type and 
+	 * has only been declared... still stick it into P->defined_types, 
+	 * it will be written over later when its definition is completed 
+	 */
+	if (P->token->type == TYPE_SEMICOLON) {
+		decl->complete = 0;
+		if (!P->defined_types) {
+			P->defined_types = decl;
+		} else {
+			TreeStruct* read;
+			for (read = P->defined_types; read->next; read = read->next);
+			read->next = decl;
+		}
+		P->token = P->token->next;
+	/* otherwise it is a complete definition */
+	} else if (P->token->type == TYPE_OPENCURL) {
+		decl->complete = 1;
+		P->token = P->token->next;
+		while (P->token && P->token->type != TYPE_CLOSECURL) {
+			TreeDecl* field = parse_decl(P);
+			field->offset = decl->size;
+			P->token = P->token->next; /* need to skip over semicolon */
+			if (!decl->children) {
+				decl->children = field;
+			} else {
+				TreeDecl* read;
+				for (read = decl->children; read->next; read = read->next);
+				read->next = field;
+			}
+			decl->size += get_variable_size(P, field);
+		}
+		/* if token still exists, it must be TYPE_OPENCURL, advance */
+		if (P->token) {
+			P->token = P->token->next;
+		}
+		/* now figure out if we should write over a previously defined
+		 * struct or just append to the list of defined_types
+		 */
+		TreeStruct* prev_defined = NULL;
+		for (TreeStruct* i = P->defined_types; i; i = i->next) {
+			if (!strcmp(i->type_name, decl->type_name)) {
+				if (i->complete) {
+					parse_error(P, "attempt to re-define struct '%s'", decl->type_name);
+				} else {
+					i->complete = 1;
+					i->children = decl->children;
+					i->size = decl->size;
+					free(decl);
+					return;
+				}
+			}
+		}		
+		if (!P->defined_types) {
+			P->defined_types = decl;
+			return;
+		}
+		/* if reached here, couldn't fine prev. defined type, append new one */
+		TreeStruct* read;
+		for (read = P->defined_types; read->next; read = read->next);
+		read->next = decl;
+	} else {
+		parse_error(P, "expected ';' or '{' after '%s : struct'", decl->type_name);
+	}
+}
+
+ParseState*
 generate_tree(Token* tokens) {
 	
 	ParseState* P = malloc(sizeof(ParseState));
@@ -481,8 +588,20 @@ generate_tree(Token* tokens) {
 	P->block = P->root->proot->block;
 	P->token = tokens;
 	P->func = NULL;
+	P->defined_types = NULL;
 	
 	while (P->token) {
+		if (P->token->next && P->token->next->next) {
+			/* special case, check to see if it's a struct declaration */
+			if (
+				P->token->type == TYPE_IDENTIFIER
+				&& P->token->next->type == TYPE_COLON 
+				&& P->token->next->next->type == TYPE_STRUCT
+			) {
+				parse_struct_declaration(P);
+				continue;
+			}
+		}
 		switch (P->token->type) {
 			case TYPE_IF:
 				parse_if(P);
@@ -510,5 +629,5 @@ generate_tree(Token* tokens) {
 	finished:
 	print_block(P->root->proot->block, 0);
 
-	return P->root;
+	return P;
 }

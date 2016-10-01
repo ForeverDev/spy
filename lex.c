@@ -100,18 +100,19 @@ generate_tokens(const char* filename) {
 			}
 			buf[len] = 0;
 			append_token(tokens, buf, line, (
-				is_string ? 14 : 
-				!strcmp(buf, "if") ? 1 : 
-				!strcmp(buf, "else") ? 2 : 
-				!strcmp(buf, "while") ? 3 :
-				!strcmp(buf, "do") ? 4 : 
-				!strcmp(buf, "func") ? 5 :
-				!strcmp(buf, "return") ? 6 : 
-				!strcmp(buf, "switch") ? 7 : 
-				!strcmp(buf, "case") ? 8 : 
-				!strcmp(buf, "continue") ? 9 : 
-				!strcmp(buf, "break") ? 10 : 
-				!strcmp(buf, "for") ? 11 : 12
+				is_string ? TYPE_STRING : 
+				!strcmp(buf, "if") ? TYPE_IF : 
+				!strcmp(buf, "else") ? TYPE_ELSE : 
+				!strcmp(buf, "while") ? TYPE_WHILE :
+				!strcmp(buf, "do") ? TYPE_DO : 
+				!strcmp(buf, "func") ? TYPE_FUNCTION :
+				!strcmp(buf, "return") ? TYPE_RETURN : 
+				!strcmp(buf, "switch") ? TYPE_SWITCH : 
+				!strcmp(buf, "case") ? TYPE_CASE : 
+				!strcmp(buf, "continue") ? TYPE_CONTINUE : 
+				!strcmp(buf, "break") ? TYPE_BREAK : 
+				!strcmp(buf, "for") ? TYPE_FOR : 
+				!strcmp(buf, "struct") ? TYPE_STRUCT : TYPE_IDENTIFIER
 			));
 		} else if (isdigit(*contents)) {
 			start = contents;

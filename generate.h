@@ -24,6 +24,7 @@ struct CompileState {
 	TreeNode* root;		
 	TreeNode* focus;
 	TreeFunction* func; /* current function being generated */
+	TreeStruct* defined_types;
 	InsStack* ins_stack;
 	unsigned int depth;
 	unsigned int label_count;
@@ -31,6 +32,6 @@ struct CompileState {
 	FILE* fout;
 };
 
-void generate_bytecode(TreeNode*, const char*);
+void generate_bytecode(ParseState*, const char*);
 
 #endif

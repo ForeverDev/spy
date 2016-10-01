@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
 			Spy_execute(argv[2], flags, 1, args);
 		} else if (!strncmp(argv[1], "c", 1)) {
 			Token* tokens = generate_tokens(argv[2]);	
-			TreeNode* tree = generate_tree(tokens);
+			ParseState* tree = generate_tree(tokens);
 			generate_bytecode(tree, "examples/test.spys"); 
 		}
 	} else {

@@ -23,7 +23,13 @@ enum ExpType {
 	EXP_NOTYPE,
 	EXP_FUNC_CALL,
 	EXP_ARRAY_INDEX,
-	EXP_TOKEN
+	EXP_LITERAL,
+	EXP_VARIABLE,
+	EXP_OPERATOR,
+	EXP_FIELD,
+	EXP_IDENTIFIER,
+	EXP_STRUCT,
+	EXP_DATATYPE
 };
 
 struct ExpOperator {
@@ -40,7 +46,12 @@ struct ExpNode {
 	ExpType type;
 	ExpNode* next;
 	union {
-		Token* ptoken;
+		Token* pliteral;
+		Token* poperator;
+		Token* pidentifier;
+		TreeDecl* pvariable;
+		TreeDatatype* pdatatype;
+		TreeStruct* pstruct;
 		ExpFuncCall* pfunc;
 		ExpNode* parray;
 	};
@@ -61,6 +72,7 @@ static StringList* pop_instruction(CompileState*);
 static void write(CompileState*, const char*, ...);
 static TreeDecl* find_local(CompileState*, const char*);
 static void compile_error(CompileState*, const char*, ...);
+static TreeStruct* type_defined(CompileState*, const char*);
 
 /* generating (etc) functions */
 static void generate_expression(CompileState*, ExpNode*);
@@ -137,6 +149,16 @@ compile_error(CompileState* C, const char* format, ...) {
 	exit(1);
 }
 
+static TreeStruct*
+find_type(CompileState* C, const char* type_name) {
+	for (TreeStruct* i = C->defined_types; i; i = i->next) {
+		if (!strcmp(i->type_name, type_name)) {
+			return i;
+		}
+	}
+	return NULL;
+}
+
 static TreeDecl*
 find_local(CompileState* C, const char* identifier) {
 	/* first check if it is a function argument */
@@ -159,7 +181,8 @@ find_local(CompileState* C, const char* identifier) {
 		}
 		block = block->parent_node->parent_block;
 	}
-	compile_error(C, "undeclared identifier '%s'", identifier);
+	return NULL;
+	//compile_error(C, "undeclared identifier '%s'", identifier);
 }
 
 static void
@@ -241,8 +264,20 @@ print_expression(ExpNode* expression) {
 			case EXP_FUNC_CALL:
 			case EXP_ARRAY_INDEX:
 				break;
-			case EXP_TOKEN:	
-				out = i->ptoken->word;
+			case EXP_OPERATOR:
+				out = i->poperator->word;
+				break;
+			case EXP_VARIABLE:
+				out = i->pvariable->identifier;
+				break;
+			case EXP_LITERAL:	
+				out = i->pliteral->word;
+				break;
+			case EXP_IDENTIFIER:
+				out = i->pidentifier->word;
+				break;
+			case EXP_STRUCT:
+				out = i->pstruct->type_name;
 				break;
 		}
 		printf("%s ", out);
@@ -420,7 +455,8 @@ postfix_expression(CompileState* C, Token* expression) {
 		[TYPE_HYPHON]		= {7, 1},
 		[TYPE_ASTER]		= {8, 1},
 		[TYPE_PERCENT]		= {8, 1},
-		[TYPE_FORSLASH]		= {8, 1}
+		[TYPE_FORSLASH]		= {8, 1},
+		[TYPE_PERIOD]		= {9, 1}
 	};
 	
 	/* implement shunting yard algorithm for expressions */
@@ -436,8 +472,8 @@ postfix_expression(CompileState* C, Token* expression) {
 			}
 		} else if (C->token->type == TYPE_OPENPAR) {
 			node = malloc(sizeof(ExpNode));
-			node->type = EXP_TOKEN;
-			node->ptoken = C->token;
+			node->type = EXP_OPERATOR;
+			node->poperator = C->token;
 			node->next = NULL;
 			exp_push(&operators, node);
 		/* assoc is used to see if it exists, because all operators
@@ -446,24 +482,30 @@ postfix_expression(CompileState* C, Token* expression) {
 		} else if (ops[C->token->type].assoc) {
 			while (
 				operators
-				&& exp_top(&operators)->ptoken->type != TYPE_OPENPAR
-				&& ops[C->token->type].pres <= ops[exp_top(&operators)->ptoken->type].pres
+				&& exp_top(&operators)->poperator->type != TYPE_OPENPAR
+				&& ops[C->token->type].pres <= ops[exp_top(&operators)->poperator->type].pres
 			) {
 				exp_push(&postfix, exp_pop(&operators));
 			}
 			node = malloc(sizeof(ExpNode));	
-			node->type = EXP_TOKEN;
-			node->ptoken = C->token;
+			node->type = EXP_OPERATOR;
+			node->poperator = C->token;
 			node->next = NULL;
 			exp_push(&operators, node);
-		} else if (C->token->type == TYPE_IDENTIFIER || C->token->type == TYPE_NUMBER) {
+		} else if (C->token->type == TYPE_IDENTIFIER) {
 			node = malloc(sizeof(ExpNode));
-			node->type = EXP_TOKEN;
-			node->ptoken = C->token;
+			node->type = EXP_IDENTIFIER;
+			node->pidentifier = C->token; // find_local(C, C->token->word);
+			node->next = NULL;
+			exp_push(&postfix, node);
+		} else if (C->token->type == TYPE_NUMBER) {
+			node = malloc(sizeof(ExpNode));
+			node->type = EXP_LITERAL;
+			node->pliteral = C->token;
 			node->next = NULL;
 			exp_push(&postfix, node);
 		} else if (C->token->type == TYPE_CLOSEPAR) {
-			while (operators && exp_top(&operators)->ptoken->type != TYPE_OPENPAR) {
+			while (operators && exp_top(&operators)->poperator->type != TYPE_OPENPAR) {
 				exp_push(&postfix, exp_pop(&operators));	
 			}
 			exp_pop(&operators);
@@ -491,44 +533,113 @@ postfix_expression(CompileState* C, Token* expression) {
  */
 static void
 generate_expression(CompileState* C, ExpNode* expression) {
+
+	/* used for typechecking, finding fields in structs, etc */
+	ExpStack* stack = NULL;
+	ExpNode* pop[2];
+
+	print_expression(expression);
+		
 	for (ExpNode* i = expression; i; i = i->next) {
 		switch (i->type) {
-			case EXP_TOKEN:
-				switch (i->ptoken->type) {
-					case TYPE_NUMBER:
-						write(C, "ipush %s\n", i->ptoken->word);
-						break;
-					case TYPE_IDENTIFIER:
-						write(C, "ilload %d\n", find_local(C, i->ptoken->word)->offset);
-						break;
+			case EXP_LITERAL:
+				exp_push(&stack, i);
+				write(C, "ipush %s\n", i->pliteral->word);
+				break;
+			case EXP_VARIABLE:
+				exp_push(&stack, i);
+				write(C, "ilload %d\n", i->pvariable->offset);
+				break;
+			case EXP_IDENTIFIER:
+				exp_push(&stack, i);
+				break;
+			case EXP_OPERATOR: 
+				for (int i = 0; i < 2; i++) {
+					if (!stack) {
+						compile_error(C, "malformed expression");
+					}
+					pop[i] = exp_pop(&stack);
+				}
+				switch (i->poperator->type) {
 					case TYPE_EQ:
 						write(C, "icmp\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_PLUS:
 						write(C, "iadd\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_HYPHON:
 						write(C, "isub\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_ASTER:
 						write(C, "imul\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_FORSLASH:
 						write(C, "idiv\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_GT:
 						write(C, "igt\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_GE:
 						write(C, "ige\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_LT:
 						write(C, "ilt\n");
-						break;
+						goto arith_typecheck;
 					case TYPE_LE:
 						write(C, "ile\n");
-						break;
+						goto arith_typecheck;
+					case TYPE_PERIOD:
+						if (pop[1]->type == EXP_LITERAL) {
+							compile_error(C, "can't use operator '.' on a literal");
+						}
+						/* if pop[1] is a struct, we know it's an embedded period,
+						 * e.g. (a.b.c)
+						 *
+						 * otherwise, if pop[1] is an identifier, we know it's the first
+						 * period in the statement, e.g. (a.b)
+						 */
+						TreeDecl* children;
+						if (pop[1]->type == EXP_IDENTIFIER) {
+							TreeDecl* local = find_local(C, pop[1]->pidentifier->word);
+							if (!local) {
+								compile_error(C, "undeclared identifier '%s'", pop[1]->pidentifier->word);
+							}
+							TreeStruct* template = find_type(C, local->datatype->type_name);
+							if (!template) {
+								compile_error(C, "can't find type name of '%s'", local->identifier);
+							}
+							write(C, "ilea %d\n", local->offset);
+							children = template->children;
+						} else if (pop[1]->type == EXP_STRUCT) {
+							children = pop[1]->pstruct->children;
+						}
+						/* scan through the children of the parent struct and look for the member */
+						for (TreeDecl* i = children; i; i = i->next) {
+							if (!strcmp(i->identifier, pop[0]->pidentifier->word)) {
+								ExpNode* push = malloc(sizeof(ExpNode));
+								push->next = NULL;
+								write(C, "icinc %d\n", i->offset);
+								TreeStruct* member_type;
+								/* if the member is a struct, don't dereference, it's not a prim. type */
+								if ((member_type = find_type(C, i->datatype->type_name))) {
+									push->type = EXP_STRUCT;
+									push->pstruct = member_type;
+								/* else, it is a primitive type, dereference */
+								} else {
+									write(C, "ider\n");
+									push->type = EXP_DATATYPE;
+									push->pdatatype = i->datatype;
+								}
+								exp_push(&stack, push);
+								goto no_typecheck;
+							}
+						}
+						goto no_typecheck;
 				}
+				arith_typecheck:
+				exp_push(&stack, pop[0]);
+				break;
+				no_typecheck:
 				break;
 			case EXP_FUNC_CALL:
 
@@ -575,7 +686,7 @@ generate_function_decl(CompileState* C) {
 	 * larger sizes... make sure to allocate enough space
 	 * for them in the future
 	 */
-	write(C, "res %d\n", C->focus->pfunc->nlocals);
+	write(C, "res %d\n", C->focus->pfunc->reserve_space);
 
 	push_instruction(C, DEF_LABEL "\n", C->return_label);
 	push_instruction(C, "iret\n");
@@ -583,15 +694,18 @@ generate_function_decl(CompileState* C) {
 
 static void
 generate_assignment(CompileState* C) {
-
+	generate_expression(C, postfix_expression(C, C->focus->pass->rhs));
+	ExpNode* lhs = postfix_expression(C, C->focus->pass->lhs);
+	print_expression(lhs);
 }
 
 void
-generate_bytecode(TreeNode* tree, const char* fout_name) {
+generate_bytecode(ParseState* P, const char* fout_name) {
 	
 	CompileState* C = malloc(sizeof(CompileState));
-	C->root = tree; 
-	C->focus = tree;
+	C->defined_types = P->defined_types;
+	C->root = P->root; 
+	C->focus = P->root;
 	C->fout = fopen(fout_name, "wb");
 	C->ins_stack = NULL;
 	C->depth = 0;

@@ -20,6 +20,7 @@ typedef struct TreeAssign TreeAssign;
 typedef struct TreeStatement TreeStatement;
 typedef struct TreeDecl TreeDecl;
 typedef struct TreeDatatype TreeDatatype;
+typedef struct TreeStruct TreeStruct;
 typedef struct ParseState ParseState;
 typedef enum NodeType NodeType;
 
@@ -30,6 +31,14 @@ enum NodeType {
 	NODE_ASSIGN,
 	NODE_STATEMENT,
 	NODE_ROOT
+};
+
+struct TreeStruct {
+	char* type_name;
+	unsigned int complete; /* 0 if struct only declared */
+	unsigned int size;
+	TreeDecl* children;
+	TreeStruct* next;
 };
 
 struct TreeDatatype {
@@ -72,6 +81,7 @@ struct TreeFunction {
 	char* identifier;
 	unsigned int nargs;
 	unsigned int nlocals; /* doesn't include nargs */
+	unsigned int reserve_space;
 	TreeDatatype* return_type;
 	TreeDecl* arguments;
 	TreeBlock* block;
@@ -107,9 +117,10 @@ struct ParseState {
 	TreeNode* root;
 	TreeFunction* func;
 	TreeBlock* block;
+	TreeStruct* defined_types; /* used defined types */
 	Token* token;
 };
 
-TreeNode* generate_tree(Token*);
+ParseState* generate_tree(Token*);
 
 #endif
