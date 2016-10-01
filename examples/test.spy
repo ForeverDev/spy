@@ -13,7 +13,7 @@ func main() -> null {
 
 	example : datatype_two;
 	
-	if example.field_3.member_2 > 0 {
+	if example > 0 {
 
 	}
 
