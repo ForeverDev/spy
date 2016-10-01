@@ -13,6 +13,7 @@ static void jump_in(ParseState*, TreeBlock*);
 static void string_token(Token*, Token*);
 static void print_block(TreeBlock*, unsigned int);
 static void list_tokens(Token*);
+static void register_local(ParseState*, TreeDecl*);
 static void parse_error(ParseState*, const char*, ...);
 static uint32_t read_modifier(ParseState*);
 static int check_datatype(const char*);
@@ -89,6 +90,22 @@ read_modifier(ParseState* P) {
 		parse_error(P, "unknown variable modifier '%s'", mod);
 	}
 	return 0;
+}
+
+static void
+register_local(ParseState* P, TreeDecl* local) {
+	if (!P->block) {
+		parse_error(P, "can't find a block to store local '%s'\n", local->identifier);
+	}
+	P->func->nlocals++;
+	local->next = NULL;
+	if (!P->block->locals) {
+		P->block->locals = local;
+		return;
+	}
+	TreeDecl* read;
+	for (read = P->block->locals; read->next; read = read->next);
+	read->next = local;
 }
 
 static void
@@ -218,7 +235,7 @@ jump_out(ParseState* P) {
 	P->block = P->block->parent_node->parent_block;
 }
 
-static void 
+static inline void 
 jump_in(ParseState* P, TreeBlock* block) {
 	P->block = block;
 }
@@ -308,6 +325,7 @@ new_node(ParseState* P, NodeType type) {
 			node->pif->block = malloc(sizeof(TreeBlock));
 			node->pif->block->parent_node = node;
 			node->pif->block->children = NULL;
+			node->pif->block->locals = NULL;
 			break;
 		case NODE_WHILE:
 			node->pwhile = malloc(sizeof(TreeWhile));
@@ -315,15 +333,19 @@ new_node(ParseState* P, NodeType type) {
 			node->pwhile->block = malloc(sizeof(TreeBlock));
 			node->pwhile->block->parent_node = node;
 			node->pwhile->block->children = NULL;
+			node->pwhile->block->locals = NULL;
 			break;
 		case NODE_FUNCTION:
 			node->pfunc = malloc(sizeof(TreeFunction));
 			node->pfunc->identifier = NULL;
 			node->pfunc->return_type = NULL;
 			node->pfunc->arguments = NULL;
+			node->pfunc->nargs = 0;
+			node->pfunc->nlocals = 0;
 			node->pfunc->block = malloc(sizeof(TreeBlock));
 			node->pfunc->block->parent_node = node;
 			node->pfunc->block->children = NULL;
+			node->pfunc->block->locals = NULL;
 			break;
 		case NODE_ASSIGN:
 			node->pass = malloc(sizeof(TreeAssign));
@@ -370,6 +392,7 @@ parse_function(ParseState* P) {
 	/* only instantiate arguments if list isn't empty */
 	if (P->token->type != TYPE_CLOSEPAR) {
 		while (P->token->type != TYPE_CLOSEPAR) {
+			node->pfunc->nargs++;
 			if (P->token->type == TYPE_COMMA) {
 				P->token = P->token->next;
 			}
@@ -388,6 +411,7 @@ parse_function(ParseState* P) {
 	node->pfunc->return_type = parse_datatype(P);
 	/* skip '{' */
 	P->token = P->token->next;
+	P->func = node->pfunc;
 	append_to_block(P, node);
 	jump_in(P, node->pfunc->block);
 }
@@ -395,12 +419,17 @@ parse_function(ParseState* P) {
 static void
 parse_statement(ParseState* P) {
 	TreeNode* node;
+	Token* start = P->token;
 	Token* statement = parse_until(P, TYPE_SEMICOLON);
-	/* check if there is an assignment operator */
+	/* check if there is an assignment operator or colon */
 	Token* assign_token = NULL;
+	int is_decl = 0;
 	for (Token* i = statement; i; i = i->next) {
 		if (i->type == TYPE_ASSIGN) {
 			assign_token = i;
+			break;
+		} else if (i->type == TYPE_COLON) {
+			is_decl = 1;
 			break;
 		}
 	}
@@ -418,12 +447,17 @@ parse_statement(ParseState* P) {
 		assign_token->next->prev = NULL;
 		assign_token->prev->next = NULL;
 		free(assign_token);
+		append_to_block(P, node);
+	/* handle declaration */
+	} else if (is_decl) {
+		P->token = start; /* go back to statement.... kind of hacky */
+		register_local(P, parse_decl(P));
 	/* handle statement */
 	} else {
 		node = new_node(P, NODE_STATEMENT);
 		node->pstate->statement = statement;
+		append_to_block(P, node);
 	}
-	append_to_block(P, node);
 }
 
 TreeNode*
@@ -437,10 +471,11 @@ generate_tree(Token* tokens) {
 	P->root->parent_block = NULL;
 	P->root->proot = malloc(sizeof(TreeRoot));
 	P->root->proot->block = malloc(sizeof(TreeBlock));
-	P->root->proot->block->parent_node = NULL;
+	P->root->proot->block->parent_node = P->root;
 	P->root->proot->block->children = NULL;
 	P->block = P->root->proot->block;
 	P->token = tokens;
+	P->func = NULL;
 	
 	while (P->token) {
 		switch (P->token->type) {
@@ -458,6 +493,9 @@ generate_tree(Token* tokens) {
 				if (!P->block) {
 					goto finished;
 				}
+				break;
+			case TYPE_SEMICOLON:
+				P->token = P->token->next;
 				break;
 			default:
 				parse_statement(P);

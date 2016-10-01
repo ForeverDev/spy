@@ -35,6 +35,11 @@ enum NodeType {
 struct TreeDatatype {
 	char* type_name;
 	uint32_t modifier;
+	struct ArrayDimension {
+		unsigned int dimension;
+		unsigned int size;
+		struct ArrayDimension* next;
+	} *dimensions;
 };
 
 struct TreeDecl {
@@ -64,6 +69,8 @@ struct TreeWhile {
 
 struct TreeFunction {
 	char* identifier;
+	unsigned int nargs;
+	unsigned int nlocals; /* doesn't include nargs */
 	TreeDatatype* return_type;
 	TreeDecl* arguments;
 	TreeBlock* block;
@@ -72,6 +79,7 @@ struct TreeFunction {
 struct TreeBlock {
 	TreeNode* parent_node;
 	TreeNode* children;
+	TreeDecl* locals;
 };
 
 struct TreeRoot {
@@ -95,6 +103,7 @@ struct TreeNode {
 
 struct ParseState {
 	TreeNode* root;
+	TreeFunction* func;
 	TreeBlock* block;
 	Token* token;
 };

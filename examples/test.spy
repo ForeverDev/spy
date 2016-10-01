@@ -1,7 +1,10 @@
 func sample(a : static const int, b : int) -> null {
+	
+	x : static const int;
+	y : static const float;
 
-	if x == example * 13 {
-		if z == test {
+	if 10 == 7 + 3 {
+		while 66 == 33 * 2 {
 
 		}
 	}

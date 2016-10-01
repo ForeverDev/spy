@@ -4,15 +4,19 @@
 #include <stdarg.h>
 #include "generate.h"
 
-#define LABEL_FORMAT "__LABEL__%d"
+#define LABEL_FORMAT "__LABEL__%u"
+#define FUNC_FORMAT "__FUNC__%s"
+#define CFUNC_FORMAT "__CFUNC__%s"
+#define DEF_FUNC FUNC_FORMAT ":"
 #define DEF_LABEL LABEL_FORMAT ":"
-#define JIF_LABEL "jif " LABEL_FORMAT
-#define JIT_LABEL "jit " LABEL_FORMAT
+#define JZ_LABEL "jz " LABEL_FORMAT
+#define JNZ_LABEL "jnz " LABEL_FORMAT
 #define JMP_LABEL "jmp " LABEL_FORMAT
 
 typedef struct ExpNode ExpNode;
 typedef struct ExpStack ExpStack;
 typedef struct ExpOperator ExpOperator;
+typedef struct ExpFuncCall ExpFuncCall;
 typedef enum ExpType ExpType;
 
 enum ExpType {
@@ -27,12 +31,17 @@ struct ExpOperator {
 	unsigned int assoc;
 };
 
+struct ExpFuncCall {
+	char* identifier;
+	ExpNode* argument;
+};
+
 struct ExpNode {
 	ExpType type;
 	ExpNode* next;
 	union {
 		Token* ptoken;
-		ExpNode* pfunc;
+		ExpFuncCall* pfunc;
 		ExpNode* parray;
 	};
 };
@@ -47,12 +56,19 @@ static void print_expression(ExpNode*);
 static int advance(CompileState*);
 static int block_empty(CompileState*);
 static const char* focus_tostring(CompileState*);
-static ExpNode* infix_to_postfix(CompileState*, Token*);
-static void generate_if(CompileState*);
 static void push_instruction(CompileState*, const char*, ...);
 static StringList* pop_instruction(CompileState*);
 static void write(CompileState*, const char*, ...);
+static TreeDecl* find_local(CompileState*, const char*);
+
+/* generating (etc) functions */
 static void generate_expression(CompileState*, ExpNode*);
+static void generate_if(CompileState*);
+static void generate_while(CompileState*);
+static void generate_function_decl(CompileState*);
+static void generate_assignment(CompileState*);
+static ExpNode* postfix_expression(CompileState*, Token*);
+static ExpNode* postfix_function_call(CompileState*);
 
 /* ExpStack functions */
 static void exp_push(ExpStack**, ExpNode*);
@@ -97,6 +113,11 @@ exp_top(ExpStack** stack) {
 	ExpStack* i;
 	for (i = *stack; i->next; i = i->next);
 	return i->value;
+}
+
+static TreeDecl*
+find_local(CompileState* C, const char* identifier) {
+
 }
 
 static void
@@ -261,7 +282,7 @@ advance(CompileState* C) {
 		if (!C->focus) {
 			break;
 		}
-		if (!C->focus->parent_block->parent_node) {
+		if (!C->focus->parent_block) {
 			break;
 		}
 		C->depth--;
@@ -280,7 +301,61 @@ advance(CompileState* C) {
 }
 
 static ExpNode*
-infix_to_postfix(CompileState* C, Token* expression) {
+postfix_function_call(CompileState* C) {
+	
+	/* expects to be on the name of the function */
+		
+	/* node->pfunc will hold the function argument in postfix, initialize
+	 * it to NULL for now... we need to parse ahead, find the end of the 
+	 * call, and call postfix_expression again
+	 */
+	ExpNode* node = malloc(sizeof(ExpNode));
+	node->type = EXP_FUNC_CALL;
+	node->next = NULL; 
+	node->pfunc = malloc(sizeof(ExpFuncCall));
+	node->pfunc->identifier = C->token->word;
+	node->pfunc->argument = NULL; /* TBD */
+	
+	/* skip to first token in argument list */
+	C->token = C->token->next->next;
+	
+	/* save the current token... we're going to scan ahead, find
+	 * the last token in the argument list, and DETACH it from the 
+	 * following token, so that the call we make to postfix_expression
+	 * doesn't go past the end of the call.  After, C->token will be
+	 * assigned to the token immediately following the function call
+	 * so that conversion can continue properly
+	 */
+	Token* argument = C->token;
+	
+	unsigned int counter = 1;
+	while (counter > 0) {
+		switch (C->token->type) {
+			case TYPE_OPENPAR:
+				counter++;
+				break;
+			case TYPE_CLOSEPAR:
+				counter--;
+				break;
+		}
+		C->token = C->token->next;
+	}
+	
+	/* if necessary, detach */
+	if (C->token && C->token->next) {
+		Token* save = C->token->next;
+		C->token->next->prev = NULL;
+		C->token->next = NULL;
+		C->token = save;
+	}
+	
+}
+
+/* wraps a Token expression into an ExpNode expression
+ * and converts it from infix to postfix
+ */
+static ExpNode*
+postfix_expression(CompileState* C, Token* expression) {
 
 	static const ExpOperator ops[256] = {
 		[TYPE_COMMA]		= {1, 1},
@@ -310,34 +385,42 @@ infix_to_postfix(CompileState* C, Token* expression) {
 	ExpStack* postfix = NULL;	
 	ExpStack* operators = NULL;
 	ExpNode* node;
-	for (Token* i = expression; i; i = i->next) {
-		if (i->next && i->type == TYPE_IDENTIFIER && i->next->type == TYPE_OPENPAR) {
-
-		} else if (i->type == TYPE_OPENPAR) {
+	for (C->token = expression; C->token; C->token = C->token->next) {
+		if (C->token->next && C->token->type == TYPE_IDENTIFIER && C->token->next->type == TYPE_OPENPAR) {
+			node = postfix_function_call(C);
+			exp_push(&postfix, node);
+			if (!C->token) {
+				break;
+			}
+		} else if (C->token->type == TYPE_OPENPAR) {
 			node = malloc(sizeof(ExpNode));
 			node->type = EXP_TOKEN;
-			node->ptoken = i;
+			node->ptoken = C->token;
+			node->next = NULL;
 			exp_push(&operators, node);
 		/* assoc is used to see if it exists, because all operators
 		 * should have a non-zero assoc
 		 */
-		}  else if (ops[i->type].assoc) {
-			while (operators
-				   && exp_top(&operators)->ptoken->type != TYPE_OPENPAR
-				   && ops[i->type].pres <= ops[exp_top(&operators)->ptoken->type].pres
+		} else if (ops[C->token->type].assoc) {
+			while (
+				operators
+				&& exp_top(&operators)->ptoken->type != TYPE_OPENPAR
+				&& ops[C->token->type].pres <= ops[exp_top(&operators)->ptoken->type].pres
 			) {
 				exp_push(&postfix, exp_pop(&operators));
 			}
 			node = malloc(sizeof(ExpNode));	
 			node->type = EXP_TOKEN;
-			node->ptoken = i;
+			node->ptoken = C->token;
+			node->next = NULL;
 			exp_push(&operators, node);
-		} else if (i->type == TYPE_IDENTIFIER || i->type == TYPE_NUMBER) {
+		} else if (C->token->type == TYPE_IDENTIFIER || C->token->type == TYPE_NUMBER) {
 			node = malloc(sizeof(ExpNode));
 			node->type = EXP_TOKEN;
-			node->ptoken = i;
+			node->ptoken = C->token;
+			node->next = NULL;
 			exp_push(&postfix, node);
-		} else if (i->type == TYPE_CLOSEPAR) {
+		} else if (C->token->type == TYPE_CLOSEPAR) {
 			while (operators && exp_top(&operators)->ptoken->type != TYPE_OPENPAR) {
 				exp_push(&postfix, exp_pop(&operators));	
 			}
@@ -348,7 +431,11 @@ infix_to_postfix(CompileState* C, Token* expression) {
 	while (operators) {
 		exp_push(&postfix, exp_pop(&operators));
 	}
-
+	
+	/* the ExpNodes on the stack aren't linked yet (they're currently
+	 * linked by the stack...)
+	 * link them together by going through the stack
+	 */
 	for (ExpStack* i = postfix; i->next; i = i->next) {
 		i->value->next = i->next->value;
 	}
@@ -357,19 +444,64 @@ infix_to_postfix(CompileState* C, Token* expression) {
 }
 
 /* converts an expression in postfix to bytecode...
- * use infix_to_postfix before calling to convert an
+ * use postfix_expression before calling to convert an
  * infix expression to a postfix expression 
  */
 static void
 generate_expression(CompileState* C, ExpNode* expression) {
 
+	for (ExpNode* i = expression; i; i = i->next) {
+		switch (i->type) {
+			case EXP_TOKEN:
+				switch (i->ptoken->type) {
+					case TYPE_NUMBER:
+						write(C, "ipush %s\n", i->ptoken->word);
+						break;
+					case TYPE_EQ:
+						write(C, "icmp\n");
+						break;
+					case TYPE_PLUS:
+						write(C, "iadd\n");
+						break;
+					case TYPE_HYPHON:
+						write(C, "isub\n");
+						break;
+					case TYPE_ASTER:
+						write(C, "imul\n");
+						break;
+					case TYPE_FORSLASH:
+						write(C, "idiv\n");
+						break;
+					case TYPE_GT:
+						write(C, "igt\n");
+						break;
+					case TYPE_GE:
+						write(C, "ige\n");
+						break;
+					case TYPE_LT:
+						write(C, "ilt\n");
+						break;
+					case TYPE_LE:
+						write(C, "ile\n");
+						break;
+				}
+				break;
+			case EXP_FUNC_CALL:
+
+				break;
+			case EXP_ARRAY_INDEX:
+			case EXP_NOTYPE:
+				break;
+		}
+	}
+	printf("done\n");
 }
 
 static void
 generate_if(CompileState* C) {
 	unsigned int label = C->label_count++;
-	generate_expression(C, infix_to_postfix(C, C->focus->pif->condition));
-	write(C, JIF_LABEL "\n", label);
+	generate_expression(C, postfix_expression(C, C->focus->pif->condition));
+	write(C, JZ_LABEL "\n", label);
 	push_instruction(C, DEF_LABEL "\n", label);
 }
 
@@ -378,9 +510,36 @@ generate_while(CompileState* C) {
 	unsigned int top_label = C->label_count++;
 	unsigned int done_label = C->label_count++;
 	write(C, DEF_LABEL "\n", top_label);
-	generate_expression(C, infix_to_postfix(C, C->focus->pwhile->condition));
-	write(C, JIF_LABEL "\n", done_label);
+	generate_expression(C, postfix_expression(C, C->focus->pwhile->condition));
+	write(C, JZ_LABEL "\n", done_label);
+	push_instruction(C, JMP_LABEL "\n", top_label);
 	push_instruction(C, DEF_LABEL "\n", done_label);
+}
+
+static void
+generate_function_decl(CompileState* C) {
+	write(C, DEF_FUNC "\n", C->focus->pfunc->identifier);
+	C->return_label = C->label_count++;
+	
+	/* load arguments onto the stack */
+	for (int i = 0; i < C->focus->pfunc->nargs; i++) {
+		write(C, "iarg %d\n", i);	
+	}
+
+	/* reserve space for locals.... TODO currently locals
+	 * have a maximum size of 1, but structs will have
+	 * larger sizes... make sure to allocate enough space
+	 * for them in the future
+	 */
+	write(C, "res %d\n", C->focus->pfunc->nlocals);
+
+	push_instruction(C, DEF_LABEL "\n", C->return_label);
+	push_instruction(C, "iret\n");
+}
+
+static void
+generate_assignment(CompileState* C) {
+
 }
 
 void
@@ -392,19 +551,31 @@ generate_bytecode(TreeNode* tree, const char* fout_name) {
 	C->fout = fopen(fout_name, "wb");
 	C->ins_stack = NULL;
 	C->depth = 0;
+	C->label_count = 0;
+	C->return_label = 0;
+	C->token = NULL;
 	if (!C->fout) {
 		printf("couldn't open output file '%s' for writing\n", fout_name);
 		exit(1);
 	}
 
 	int advance_success = 1;
-
+	
 	while (advance_success) {
 		switch (C->focus->type) {
 			case NODE_ROOT:
 				break;
 			case NODE_IF:
 				generate_if(C);
+				break;
+			case NODE_WHILE:
+				generate_while(C);
+				break;
+			case NODE_FUNCTION:
+				generate_function_decl(C);
+				break;
+			case NODE_ASSIGN:
+				generate_assignment(C);
 				break;
 		}
 		advance_success = advance(C);

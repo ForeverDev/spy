@@ -20,11 +20,14 @@ struct InsStack {
 };
 
 struct CompileState {
+	Token* token; /* so we don't need to pass Token* between calls */
 	TreeNode* root;		
 	TreeNode* focus;
+	TreeFunction* func; /* current function being generated */
 	InsStack* ins_stack;
 	unsigned int depth;
 	unsigned int label_count;
+	unsigned int return_label;
 	FILE* fout;
 };
 
