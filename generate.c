@@ -493,7 +493,6 @@ postfix_expression(CompileState* C, Token* expression) {
  */
 static void
 generate_expression(CompileState* C, ExpNode* expression) {
-
 	for (ExpNode* i = expression; i; i = i->next) {
 		switch (i->type) {
 			case EXP_TOKEN:
@@ -538,7 +537,6 @@ generate_expression(CompileState* C, ExpNode* expression) {
 				break;
 		}
 	}
-	printf("done\n");
 }
 
 static void
