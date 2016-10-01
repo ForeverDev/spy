@@ -91,6 +91,7 @@ struct TreeNode {
 	TreeNode* next;
 	TreeNode* prev;
 	TreeBlock* parent_block;
+	unsigned int line;
 	union {
 		TreeIf* pif;
 		TreeWhile* pwhile;
@@ -109,6 +110,5 @@ struct ParseState {
 };
 
 TreeNode* generate_tree(Token*);
-void parse_error(ParseState*, const char*, ...); /* exposed to generate.c */
 
 #endif

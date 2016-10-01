@@ -14,6 +14,7 @@ static void string_token(Token*, Token*);
 static void print_block(TreeBlock*, unsigned int);
 static void list_tokens(Token*);
 static void register_local(ParseState*, TreeDecl*);
+static void parse_error(ParseState*, const char*, ...);
 static uint32_t read_modifier(ParseState*);
 static int check_datatype(const char*);
 static int is_keyword(ParseState*);
@@ -29,7 +30,7 @@ static const char* keywords[32] = {
 	"break", "continue", "return"
 };
 
-void
+static void
 parse_error(ParseState* P, const char* format, ...) {
 	va_list args;
 	va_start(args, format);
@@ -40,7 +41,7 @@ parse_error(ParseState* P, const char* format, ...) {
 	}
 	printf(">\n\n\n*** SPYRE COMPILE-TIME ERROR ***\n\nMESSAGE:  ");
 	vprintf(format, args);
-	printf("\nLINE:     %d\nTOKEN:    %s\n\n\n<", P->token->line, P->token->word);
+	printf("\nLINE:     %d\n\n\n<", P->token->line);
 	for (int i = 0; i < 40; i++) {
 		fputc('-', stdout);	
 	}
@@ -317,6 +318,7 @@ new_node(ParseState* P, NodeType type) {
 	node->type = type;
 	node->next = NULL;
 	node->parent_block = P->block;	
+	node->line = P->token->line;
 	switch (type) {
 		case NODE_IF:
 			node->pif = malloc(sizeof(TreeIf));

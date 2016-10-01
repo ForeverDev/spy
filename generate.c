@@ -60,6 +60,7 @@ static void push_instruction(CompileState*, const char*, ...);
 static StringList* pop_instruction(CompileState*);
 static void write(CompileState*, const char*, ...);
 static TreeDecl* find_local(CompileState*, const char*);
+static void compile_error(CompileState*, const char*, ...);
 
 /* generating (etc) functions */
 static void generate_expression(CompileState*, ExpNode*);
@@ -115,12 +116,33 @@ exp_top(ExpStack** stack) {
 	return i->value;
 }
 
+static void
+compile_error(CompileState* C, const char* format, ...) {
+	va_list args;
+	va_start(args, format);
+
+	printf("<");
+	for (int i = 0; i < 40; i++) {
+		fputc('-', stdout);	
+	}
+	printf(">\n\n\n*** SPYRE COMPILE-TIME ERROR ***\n\nMESSAGE:  ");
+	vprintf(format, args);
+	printf("\nLINE:     %d\n\n\n<", C->focus->line);
+	for (int i = 0; i < 40; i++) {
+		fputc('-', stdout);	
+	}
+	printf(">\n");
+
+	va_end(args);
+	exit(1);
+}
+
 static TreeDecl*
 find_local(CompileState* C, const char* identifier) {
 	/* first check if it is a function argument */
 	if (!C->func) {
 		/* TODO fix this shit */
-		parse_error(C, "can't reference another variable outside of a function");
+		compile_error(C, "can't reference another variable outside of a function");
 	}
 	for (TreeDecl* i = C->func->arguments; i; i = i->next) {
 		if (!strcmp(i->identifier, identifier)) {
@@ -139,7 +161,7 @@ find_local(CompileState* C, const char* identifier) {
 		}
 		block = block->parent_node->parent_block;
 	}
-	parse_error(C, "undeclared identifier '%s'", identifier);
+	compile_error(C, "undeclared identifier '%s'", identifier);
 }
 
 static void
