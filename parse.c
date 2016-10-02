@@ -419,11 +419,10 @@ parse_while(ParseState* P) {
 
 static void
 parse_function(ParseState* P) {
-	/* expects to start on token FUNC */
+	/* expects to start on token IDENTIFIER */
 	TreeNode* node = new_node(P, NODE_FUNCTION);
-	P->token = P->token->next;
 	node->pfunc->identifier = P->token->word;
-	P->token = P->token->next->next;
+	P->token = P->token->next->next->next;
 	/* only instantiate arguments if list isn't empty */
 	if (P->token->type != TYPE_CLOSEPAR) {
 		while (P->token->type != TYPE_CLOSEPAR) {
@@ -601,6 +600,15 @@ generate_tree(Token* tokens) {
 				parse_struct_declaration(P);
 				continue;
 			}
+			/* special case, function declaration */
+			if (
+				P->token->type == TYPE_IDENTIFIER
+				&& P->token->next->type == TYPE_COLON 
+				&& P->token->next->next->type == TYPE_OPENPAR
+			) {
+				parse_function(P);
+				continue;
+			}
 		}
 		switch (P->token->type) {
 			case TYPE_IF:
@@ -608,9 +616,6 @@ generate_tree(Token* tokens) {
 				break;	
 			case TYPE_WHILE:
 				parse_while(P);
-				break;
-			case TYPE_FUNCTION:
-				parse_function(P);
 				break;
 			case TYPE_CLOSECURL:
 				jump_out(P);

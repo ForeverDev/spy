@@ -73,13 +73,15 @@ static void write(CompileState*, const char*, ...);
 static TreeDecl* find_local(CompileState*, const char*);
 static void compile_error(CompileState*, const char*, ...);
 static TreeStruct* type_defined(CompileState*, const char*);
+static void comment(CompileState*, const char*, ...);
+static void token_line(CompileState*, Token*);
 
 /* generating (etc) functions */
-static void generate_expression(CompileState*, ExpNode*);
 static void generate_if(CompileState*);
 static void generate_while(CompileState*);
 static void generate_function_decl(CompileState*);
 static void generate_assignment(CompileState*);
+static ExpNode* generate_expression(CompileState*, ExpNode*, int);
 static ExpNode* postfix_expression(CompileState*, Token*);
 static ExpNode* postfix_function_call(CompileState*);
 
@@ -147,6 +149,22 @@ compile_error(CompileState* C, const char* format, ...) {
 
 	va_end(args);
 	exit(1);
+}
+
+static void
+comment(CompileState* C, const char* format, ...) {
+	va_list args;
+	va_start(args, format);
+	write(C, " ; -----> ");
+	write(C, format, args);
+	va_end(args);	
+}
+
+static void
+token_line(CompileState* C, Token* token) {
+	for (Token* i = token; i; i = i->next) {
+		write(C, "%s ", i->word);
+	}
 }
 
 static TreeStruct*
@@ -367,6 +385,7 @@ advance(CompileState* C) {
 		if (C->ins_stack) {
 			for (StringList* i = pop_instruction(C); i; i = i->next) {
 				write(C, i->str);
+				write(C, "\n");
 			}
 		}
 	}
@@ -531,15 +550,13 @@ postfix_expression(CompileState* C, Token* expression) {
  * use postfix_expression before calling to convert an
  * infix expression to a postfix expression 
  */
-static void
-generate_expression(CompileState* C, ExpNode* expression) {
+static ExpNode* 
+generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 
 	/* used for typechecking, finding fields in structs, etc */
 	ExpStack* stack = NULL;
 	ExpNode* pop[2];
 
-	print_expression(expression);
-		
 	for (ExpNode* i = expression; i; i = i->next) {
 		switch (i->type) {
 			case EXP_LITERAL:
@@ -556,7 +573,7 @@ generate_expression(CompileState* C, ExpNode* expression) {
 				node->next = NULL;
 				if (local) {
 					TreeStruct* type = find_type(C, local->datatype->type_name);
-					if (type) {
+					if (type || is_lhs) {
 						node->type = EXP_STRUCT;
 						node->pstruct = type;
 						write(C, "ilea %d\n", local->offset);
@@ -575,7 +592,7 @@ generate_expression(CompileState* C, ExpNode* expression) {
 					ExpNode* top = exp_top(&stack);
 					int found_member = 0;
 					if (!top || top->type != EXP_STRUCT) {
-						compile_error(C, "the '.' operator can only be used on a struct");	
+						compile_error(C, "undeclared identifier '%s'", i->pidentifier->word);	
 					}
 					for (TreeDecl* j = top->pstruct->children; j; j = j->next) {
 						if (!strcmp(j->identifier, i->pidentifier->word)) {
@@ -592,7 +609,11 @@ generate_expression(CompileState* C, ExpNode* expression) {
 						}	
 					}
 					if (!found_member) {
-						compile_error(C, "undeclared identifier '%s'", i->pidentifier->word);
+						compile_error(C, 
+							"'%s' is not a valid member of struct '%s'", 
+							i->pidentifier->word, 
+							top->pstruct->type_name
+						);
 					}
 				}
 				exp_push(&stack, node);
@@ -637,28 +658,6 @@ generate_expression(CompileState* C, ExpNode* expression) {
 						if (pop[1]->type == EXP_LITERAL) {
 							compile_error(C, "can't use operator '.' on a literal");
 						}
-						/* if pop[1] is a struct, we know it's an embedded period,
-						 * e.g. (a.b.c)
-						 *
-						 * otherwise, if pop[1] is an identifier, we know it's the first
-						 * period in the statement, e.g. (a.b)
-						 */
-						 /*
-						TreeDecl* children;
-						if (pop[1]->type == EXP_IDENTIFIER) {
-							TreeDecl* local = find_local(C, pop[1]->pidentifier->word);
-							if (!local) {
-								compile_error(C, "undeclared identifier '%s'", pop[1]->pidentifier->word);
-							}
-							TreeStruct* template = find_type(C, local->datatype->type_name);
-							if (!template) {
-								compile_error(C, "can't find type name of '%s'", local->identifier);
-							}
-							children = template->children;
-						} else if (pop[1]->type == EXP_STRUCT) {
-							children = pop[1]->pstruct->children;
-						}
-						*/
 						/* scan through the children of the parent struct and look for the member */
 						for (TreeDecl* j = pop[1]->pstruct->children; j; j = j->next) {
 							if (!strcmp(j->identifier, pop[0]->pidentifier->word)) {
@@ -672,7 +671,9 @@ generate_expression(CompileState* C, ExpNode* expression) {
 									push->pstruct = member_type;
 								/* else, it is a primitive type, dereference */
 								} else {
-									write(C, "ider\n");
+									if (!is_lhs) {
+										write(C, "ider\n");
+									}
 									push->type = EXP_DATATYPE;
 									push->pdatatype = j->datatype;
 								}
@@ -695,25 +696,43 @@ generate_expression(CompileState* C, ExpNode* expression) {
 				break;
 		}
 	}
+
+	/* the ExpNodes on the stack aren't linked yet (they're currently
+	 * linked by the stack...)
+	 * link them together by going through the stack
+	 */
+	for (ExpStack* i = stack; i->next; i = i->next) {
+		i->value->next = i->next->value;
+	}
+
+	return stack->value;
 }
 
 static void
-generate_if(CompileState* C) {
+generate_if(CompileState* C) {	
 	unsigned int label = C->label_count++;
-	generate_expression(C, postfix_expression(C, C->focus->pif->condition));
+	comment(C, "");
+	write(C, "if ( ");
+	token_line(C, C->focus->pass->lhs);
+	write(C, ") {\n");
+	generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0);
 	write(C, JZ_LABEL "\n", label);
-	push_instruction(C, DEF_LABEL "\n", label);
+	push_instruction(C, DEF_LABEL, label);
 }
 
 static void
 generate_while(CompileState* C) {
 	unsigned int top_label = C->label_count++;
 	unsigned int done_label = C->label_count++;
+	comment(C, "");
+	write(C, "while ( ");
+	token_line(C, C->focus->pass->lhs);
+	write(C, ") {\n");
 	write(C, DEF_LABEL "\n", top_label);
-	generate_expression(C, postfix_expression(C, C->focus->pwhile->condition));
+	generate_expression(C, postfix_expression(C, C->focus->pwhile->condition), 0);
 	write(C, JZ_LABEL "\n", done_label);
-	push_instruction(C, JMP_LABEL "\n", top_label);
-	push_instruction(C, DEF_LABEL "\n", done_label);
+	push_instruction(C, JMP_LABEL, top_label);
+	push_instruction(C, DEF_LABEL, done_label);
 }
 
 static void
@@ -734,15 +753,21 @@ generate_function_decl(CompileState* C) {
 	 */
 	write(C, "res %d\n", C->focus->pfunc->reserve_space);
 
-	push_instruction(C, DEF_LABEL "\n", C->return_label);
-	push_instruction(C, "iret\n");
+	push_instruction(C, DEF_LABEL, C->return_label);
+	push_instruction(C, "iret");
 }
 
 static void
 generate_assignment(CompileState* C) {
-	generate_expression(C, postfix_expression(C, C->focus->pass->rhs));
-	ExpNode* lhs = postfix_expression(C, C->focus->pass->lhs);
-	print_expression(lhs);
+	comment(C, "");
+	token_line(C, C->focus->pass->lhs);
+	write(C, "=\n");
+	ExpNode* lhs = generate_expression(C, postfix_expression(C, C->focus->pass->lhs), 1);
+	comment(C, "");
+	token_line(C, C->focus->pass->rhs);
+	write(C, "\n");
+	generate_expression(C, postfix_expression(C, C->focus->pass->rhs), 0);
+	write(C, "isave\n");
 }
 
 void
@@ -762,6 +787,8 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 		printf("couldn't open output file '%s' for writing\n", fout_name);
 		exit(1);
 	}
+
+	write(C, "jmp __ENTRY_POINT__\n");
 
 	int advance_success = 1;
 	
@@ -784,5 +811,8 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 		}
 		advance_success = advance(C);
 	}
+	
+	write(C, "__ENTRY_POINT__:\n");
+	write(C, "call __FUNC__main, 0\n");
 
 }

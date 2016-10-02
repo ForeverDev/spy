@@ -9,12 +9,14 @@ datatype_two : struct {
 	field_3 : datatype_one; 
 };
 
-func main() -> null {
+main : (x : int) -> null {
 
 	example : datatype_two;
-	
-	if example.field_3.member_2 > example.field_3.member_1 {
+	meme : int;
+
+	example.field_1 = 30;
+
+	while example.field_1 == 30 {
 
 	}
-
 }
