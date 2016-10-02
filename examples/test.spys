@@ -1,24 +1,10 @@
 jmp __ENTRY_POINT__
+
+
 __FUNC__main:
-iarg 0
-res 5
- ; -----> example . field_1 =
-ilea 1
+res 2
+ ; -----> v . x =
+ilea 0
 icinc 0
- ; -----> 30 
-ipush 30
-isave
- ; -----> while ( example . field_1 == 330 ) {
-__LABEL__1:
-ilea 1
-icinc 0
-ider
-ipush 330
-icmp
-jz __LABEL__2
-jmp __LABEL__1
-__LABEL__2:
-__LABEL__0:
-iret
-__ENTRY_POINT__:
-call __FUNC__main, 0
+ ; -----> 10.0 
+ipush 10.0

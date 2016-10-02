@@ -21,6 +21,7 @@ typedef struct TreeStatement TreeStatement;
 typedef struct TreeDecl TreeDecl;
 typedef struct TreeDatatype TreeDatatype;
 typedef struct TreeStruct TreeStruct;
+typedef struct TreeReturn TreeReturn;
 typedef struct ParseState ParseState;
 typedef enum NodeType NodeType;
 
@@ -30,6 +31,7 @@ enum NodeType {
 	NODE_FUNCTION,
 	NODE_ASSIGN,
 	NODE_STATEMENT,
+	NODE_RETURN,
 	NODE_ROOT
 };
 
@@ -43,6 +45,7 @@ struct TreeStruct {
 
 struct TreeDatatype {
 	char* type_name;
+	unsigned int ptr_level;
 	uint32_t modifier;
 	struct ArrayDimension {
 		unsigned int dimension;
@@ -64,6 +67,10 @@ struct TreeAssign {
 };
 
 struct TreeStatement {
+	Token* statement;
+};
+
+struct TreeReturn {
 	Token* statement;
 };
 
@@ -109,6 +116,7 @@ struct TreeNode {
 		TreeFunction* pfunc;
 		TreeStatement* pstate;
 		TreeAssign* pass;
+		TreeReturn* pret;
 		TreeRoot* proot;
 	};
 };

@@ -11,7 +11,7 @@ const AssemblerInstruction instructions[0xFF] = {
 	{"ISUB",	0x03, {NO_OPERAND}},
 	{"IMUL",	0x04, {NO_OPERAND}},
 	{"IDIV",	0x05, {NO_OPERAND}},
-	{"MOD",	0x06, {NO_OPERAND}},
+	{"MOD",		0x06, {NO_OPERAND}},
 	{"SHL",		0x07, {NO_OPERAND}},
 	{"SHR",		0x08, {NO_OPERAND}},
 	{"AND",		0x09, {NO_OPERAND}},

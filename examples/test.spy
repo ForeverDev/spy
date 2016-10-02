@@ -1,22 +1,12 @@
-datatype_one : struct { 
-	member_1 : float;
-	member_2 : float;
+Vec : struct {
+	x : const int;
+	y : int;
 }
 
-datatype_two : struct {
-	field_1 : int;
-	field_2 : int;
-	field_3 : datatype_one; 
-};
+main : () -> null {
 
-main : (x : int) -> null {
-
-	example : datatype_two;
-	meme : int;
-
-	example.field_1 = 30;
-
-	while example.field_1 == 30 {
-
-	}
+	v : Vec;
+	
+	v.x = 10.0;
+		
 }

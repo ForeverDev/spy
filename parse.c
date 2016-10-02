@@ -9,6 +9,7 @@ static void parse_while(ParseState*);
 static void parse_function(ParseState*);
 static void parse_statement(ParseState*);
 static void parse_struct_declaration(ParseState*);
+static void parse_return(ParseState*);
 static void jump_out(ParseState*);
 static void jump_in(ParseState*, TreeBlock*);
 static void string_token(Token*, Token*);
@@ -245,6 +246,15 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 				}
 				printf("\n");
 				break;
+			case NODE_RETURN:
+				printf("TYPE: RETURN\n");
+				INDENT(1);
+				printf("EXPRESSION: ");
+				for (Token* j = i->pret->statement; j; j = j->next) {
+					printf("%s ", j->word);
+				}
+				printf("\n");
+				break;
 			case NODE_ROOT:
 				break;
 		}
@@ -314,13 +324,18 @@ parse_datatype(ParseState* P) {
 	/* expects to be on first modifier or datatype */
 	TreeDatatype* data = malloc(sizeof(TreeDatatype));
 	data->modifier = 0;
+	data->ptr_level = 0;
 	uint32_t mod;
 	while (!check_datatype(P, P->token->word) && (mod = read_modifier(P))) {
 		data->modifier |= mod;
 	}
 	data->type_name = P->token->word;
-	/* ends on token after datatype */
 	P->token = P->token->next;
+	while (P->token->type == TYPE_UPCARROT) {
+		data->ptr_level++;
+		P->token = P->token->next;
+	}
+	/* ends on token after datatype */
 	return data;
 }
 
@@ -391,6 +406,10 @@ new_node(ParseState* P, NodeType type) {
 			node->pstate = malloc(sizeof(TreeStatement));
 			node->pstate->statement = NULL;
 			break;
+		case NODE_RETURN:
+			node->pret = malloc(sizeof(TreeReturn));
+			node->pret->statement = NULL;
+			break;
 		case NODE_ROOT:
 			break;
 	}
@@ -451,6 +470,15 @@ parse_function(ParseState* P) {
 }
 
 static void
+parse_return(ParseState* P) {
+	/* expects to be on token RETURN */
+	TreeNode* node = new_node(P, NODE_RETURN);
+	P->token = P->token->next;
+	node->pret->statement = parse_until(P, TYPE_SEMICOLON);
+	append_to_block(P, node);
+}
+
+static void
 parse_statement(ParseState* P) {
 	TreeNode* node;
 	Token* start = P->token;
@@ -486,7 +514,7 @@ parse_statement(ParseState* P) {
 	} else if (is_decl) {
 		P->token = start; /* go back to statement.... kind of hacky */
 		TreeDecl* decl = parse_decl(P);
-		decl->offset = P->func->nargs + P->func->nlocals;
+		decl->offset = P->func->reserve_space;
 		register_local(P, decl);
 	/* handle statement */
 	} else {
@@ -525,6 +553,10 @@ parse_struct_declaration(ParseState* P) {
 		P->token = P->token->next;
 		while (P->token && P->token->type != TYPE_CLOSECURL) {
 			TreeDecl* field = parse_decl(P);
+			/* check of an illegal self-reference */
+			if (!strcmp(field->datatype->type_name, decl->type_name)) {
+				parse_error(P, "struct '%s' has an incomplete type", decl->type_name);
+			}
 			field->offset = decl->size;
 			P->token = P->token->next; /* need to skip over semicolon */
 			if (!decl->children) {
@@ -616,6 +648,9 @@ generate_tree(Token* tokens) {
 				break;	
 			case TYPE_WHILE:
 				parse_while(P);
+				break;
+			case TYPE_RETURN:
+				parse_return(P);
 				break;
 			case TYPE_CLOSECURL:
 				jump_out(P);

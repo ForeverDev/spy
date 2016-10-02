@@ -117,14 +117,18 @@ generate_tokens(const char* filename) {
 		} else if (isdigit(*contents)) {
 			start = contents;
 			/* TODO register all number formats and convert to base 10 */
+			int is_float = 0;
 			while (isdigit(*contents) || *contents == '.') {
+				if (*contents == '.') {
+					is_float = 1;
+				}
 				contents++;
 				len++;
 			}	
 			buf = calloc(1, len + 1);
 			strncpy(buf, start, len);
 			buf[len] = 0;
-			append_token(tokens, buf, line, 13);
+			append_token(tokens, buf, line, is_float ? TYPE_FLOAT : TYPE_INT);
 		} else if (ispunct(*contents)) {
 			/* replace with strcmp? */
 			#define CHECK2(str) (*contents == str[0] && contents[1] == str[1])
