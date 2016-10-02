@@ -1,21 +1,36 @@
-println : cfunc(format : string) -> null;
-print	: cfunc(format : string) -> null;
-println : cfunc(format : string) -> null;
+println : cfunc(format : string, ...) -> null;
 
-Truck : struct {
+Date : struct {
+	day : int;
+	month : int;
+	year : int;
+}
 
-};
+Person : struct {
+	name : string;
+	birthday : Date;
+}
 
-Car : struct {
-	field_int : Truck^;
-};
+print_person : (p : Person) -> null {
+	println("test %s", p.name);
+}
 
 main : () -> null {
 	
-	car : Car;
-	truck : Truck;
+	david : Person;
+	david.name = "David";
+	david.birthday.day = 24;
+	david.birthday.month = 1;
+	david.birthday.year = 2000;
 
-	car.field_int = truck;
+	println(
+		"%s was born on %d/%d/%d!", 
+		david.name,
+		david.birthday.day,
+		david.birthday.month,
+		david.birthday.year
+	);
 
+	print_person(david);
 		
 }

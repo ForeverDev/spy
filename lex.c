@@ -80,7 +80,7 @@ generate_tokens(const char* filename) {
 			buf = calloc(1, 4);
 			strcpy(buf, "...");
 			buf[3] = 0;
-			append_token(tokens, buf, line, TYPE_DOTS);
+			append_token(tokens, buf, line, TOK_DOTS);
 		} else if (isalpha(*contents) || *contents == '_' || *contents == '"') {
 			int is_string = 0;
 			if (*contents == '"') {
@@ -106,20 +106,20 @@ generate_tokens(const char* filename) {
 			}
 			buf[len] = 0;
 			append_token(tokens, buf, line, (
-				is_string ? TYPE_STRING : 
-				!strcmp(buf, "if") ? TYPE_IF : 
-				!strcmp(buf, "else") ? TYPE_ELSE : 
-				!strcmp(buf, "while") ? TYPE_WHILE :
-				!strcmp(buf, "do") ? TYPE_DO : 
-				!strcmp(buf, "func") ? TYPE_FUNCTION :
-				!strcmp(buf, "return") ? TYPE_RETURN : 
-				!strcmp(buf, "switch") ? TYPE_SWITCH : 
-				!strcmp(buf, "case") ? TYPE_CASE : 
-				!strcmp(buf, "continue") ? TYPE_CONTINUE : 
-				!strcmp(buf, "break") ? TYPE_BREAK : 
-				!strcmp(buf, "for") ? TYPE_FOR : 
-				!strcmp(buf, "struct") ? TYPE_STRUCT : 
-				!strcmp(buf, "cfunc") ? TYPE_CFUNC : TYPE_IDENTIFIER
+				is_string ? TOK_STRING : 
+				!strcmp(buf, "if") ? TOK_IF : 
+				!strcmp(buf, "else") ? TOK_ELSE : 
+				!strcmp(buf, "while") ? TOK_WHILE :
+				!strcmp(buf, "do") ? TOK_DO : 
+				!strcmp(buf, "func") ? TOK_FUNCTION :
+				!strcmp(buf, "return") ? TOK_RETURN : 
+				!strcmp(buf, "switch") ? TOK_SWITCH : 
+				!strcmp(buf, "case") ? TOK_CASE : 
+				!strcmp(buf, "continue") ? TOK_CONTINUE : 
+				!strcmp(buf, "break") ? TOK_BREAK : 
+				!strcmp(buf, "for") ? TOK_FOR : 
+				!strcmp(buf, "struct") ? TOK_STRUCT : 
+				!strcmp(buf, "cfunc") ? TOK_CFUNC : TOK_IDENTIFIER
 			));
 		} else if (isdigit(*contents)) {
 			start = contents;
@@ -135,7 +135,7 @@ generate_tokens(const char* filename) {
 			buf = calloc(1, len + 1);
 			strncpy(buf, start, len);
 			buf[len] = 0;
-			append_token(tokens, buf, line, is_float ? TYPE_FLOAT : TYPE_INT);
+			append_token(tokens, buf, line, is_float ? TOK_FLOAT : TOK_INT);
 		} else if (ispunct(*contents)) {
 			/* replace with strcmp? */
 			#define CHECK2(str) (*contents == str[0] && contents[1] == str[1])

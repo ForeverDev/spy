@@ -205,7 +205,7 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 	fread(S.bytecode, 1, flen, f);
 	S.bytecode[flen] = 0;
 	fclose(f);
-
+	
 	for (int i = 12; i < *(uint32_t *)&S.bytecode[8]; i++) {
 		S.memory[i - 12] = S.bytecode[i];
 	}

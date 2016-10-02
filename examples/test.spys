@@ -1,0 +1,76 @@
+let __CFUNC__println "println"
+let __STR__0 "test %s"
+let __STR__1 "David"
+let __STR__2 "%s was born on %d/%d/%d!"
+jmp __ENTRY_POINT__
+
+
+__FUNC__print_person:
+iarg 0
+res 0
+ ; -----> println ( __STR__0 , p . name ) 
+ipush __STR__0
+ilea 0
+icinc 0
+ider
+ccall __CFUNC__println, 2
+__LABEL__0:
+iret
+
+
+
+__FUNC__main:
+res 4
+ ; -----> david . name =
+ilea 0
+icinc 0
+ ; -----> __STR__1 
+ipush __STR__1
+isave
+ ; -----> david . birthday . day =
+ilea 0
+icinc 8
+icinc 0
+ ; -----> 24 
+ipush 24
+isave
+ ; -----> david . birthday . month =
+ilea 0
+icinc 8
+icinc 8
+ ; -----> 1 
+ipush 1
+isave
+ ; -----> david . birthday . year =
+ilea 0
+icinc 8
+icinc 16
+ ; -----> 2000 
+ipush 2000
+isave
+ ; -----> println ( __STR__2 , david . name , david . birthday . day , david . birthday . month , david . birthday . year ) 
+ipush __STR__2
+ilea 0
+icinc 0
+ider
+ilea 0
+icinc 8
+icinc 0
+ider
+ilea 0
+icinc 8
+icinc 8
+ider
+ilea 0
+icinc 8
+icinc 16
+ider
+ccall __CFUNC__println, 5
+ ; -----> print_person ( david ) 
+ilea 0
+call __FUNC__print_person, 1
+__LABEL__1:
+iret
+
+__ENTRY_POINT__:
+call __FUNC__main, 0

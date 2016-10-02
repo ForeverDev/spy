@@ -26,7 +26,6 @@ int main(int argc, char** argv) {
 			generate_bytecode(tree, "examples/test.spys"); 
 		}
 	} else {
-		/*
 		unsigned int len = strlen(argv[1]);
 		char* asm_file = calloc(1, len + 2);
 		char* binary_file = calloc(1, len + 2);
@@ -34,10 +33,11 @@ int main(int argc, char** argv) {
 		strcat(asm_file, "s");
 		strcpy(binary_file, argv[1]);
 		strcat(binary_file, "b");
-		generate_bytecode(generate_tree(generate_tokens(argv[1])), asm_file);
+		Token* tokens = generate_tokens(argv[1]);
+		ParseState* tree = generate_tree(tokens);
+		generate_bytecode(tree, asm_file);
 		Assembler_generateBytecodeFile(asm_file);
 		Spy_execute(binary_file, flags, 1, args);
-		*/
 	}
 
 	return 0;

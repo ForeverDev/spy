@@ -58,18 +58,10 @@ parse_error(ParseState* P, const char* format, ...) {
 
 static int
 get_variable_size(ParseState* P, TreeDecl* variable) {	
-	const char* type_name = variable->datatype->type_name;
-	if (!strcmp(type_name, "int") || !strcmp(type_name, "float")) {
+	if (variable->datatype->type != TYPE_STRUCT) {
 		return 1;
 	} 
-	/* it's a struct */
-	for (TreeStruct* i = P->defined_types; i; i = i->next) {
-		if (!strcmp(i->type_name, type_name)) {
-			printf("%s is %d\n", i->type_name, i->size);
-			return i->size;
-		}
-	}
-	return 0;
+	return variable->datatype->pstruct->size;
 }
 
 static int
@@ -196,26 +188,10 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 				printf("ARGS: \n");
 				for (TreeDecl* j = i->pfunc->arguments; j; j = j->next) {
 					INDENT(1);
-					printf("  %s : ", j->identifier);
-					if (j->datatype->modifier & MOD_CONST) {
-						printf("const ");
-					}
-					if (j->datatype->modifier & MOD_VOLATILE) {
-						printf("volatile ");
-					}
-					if (j->datatype->modifier & MOD_UNSIGNED) {
-						printf("unsigned ");
-					}
-					if (j->datatype->modifier & MOD_SIGNED) {
-						printf("signed ");
-					}	
-					if (j->datatype->modifier & MOD_STATIC) {
-						printf("static ");
-					}
-					printf("%s\n", j->datatype->type_name);
+					printf("  %s : %s\n", j->identifier, tostring_datatype(j->datatype));
 				}
 				INDENT(1);
-				printf("RETURN_TYPE: %s\n", i->pfunc->return_type->type_name);
+				printf("RETURN_TYPE: %s\n", tostring_datatype(i->pfunc->return_type));
 				INDENT(1);
 				printf("BLOCK: ");
 				if (i->pfunc->block->children) {
@@ -267,6 +243,33 @@ static void print_block(TreeBlock* block, unsigned int depth) {
 	INDENT(0);
 	printf("}\n");
 }
+
+char*
+tostring_datatype(TreeDatatype* type) {
+	char* str = calloc(1, 256);
+	if (type->modifier & MOD_CONST) {
+		strcat(str, "const ");
+	}
+	if (type->modifier & MOD_VOLATILE) {
+		strcat(str, "volatile ");
+	}
+	if (type->modifier & MOD_STATIC) {
+		strcat(str, "static ");
+	}
+	strcat(str, (
+		type->type == TYPE_INT ? "int" :
+		type->type == TYPE_FLOAT ? "float" :
+		type->type == TYPE_CHAR ? "char" :
+		type->type == TYPE_STRING ? "string" :
+		type->type == TYPE_NULL ? "null" :
+		type->pstruct->type_name
+	));
+	for (int i = 0; i < type->ptr_level; i++) {
+		strcat(str, "^");
+	}
+	return str;
+}
+
 
 static void
 jump_out(ParseState* P) {
@@ -331,9 +334,26 @@ parse_datatype(ParseState* P) {
 	while (!check_datatype(P, P->token->word) && (mod = read_modifier(P))) {
 		data->modifier |= mod;
 	}
-	data->type_name = P->token->word;
+	data->type = (
+		!strcmp(P->token->word, "int") ? TYPE_INT :
+		!strcmp(P->token->word, "float") ? TYPE_FLOAT :
+		!strcmp(P->token->word, "string") ? TYPE_STRING :
+		!strcmp(P->token->word, "char") ? TYPE_CHAR : 
+		!strcmp(P->token->word, "null") ? TYPE_NULL : TYPE_STRUCT
+	);
+	data->pstruct = NULL;
+	if (data->type == TYPE_STRUCT) {
+		for (TreeStruct* i = P->defined_types; i; i = i->next) {
+			if (!strcmp(i->type_name, P->token->word)) {
+				data->pstruct = i;
+			}
+		}
+		if (!data->pstruct) {
+			parse_error(P, "'%s' is not a valid type", P->token->word);
+		}
+	}
 	P->token = P->token->next;
-	while (P->token->type == TYPE_UPCARROT) {
+	while (P->token->type == TOK_UPCARROT) {
 		data->ptr_level++;
 		P->token = P->token->next;
 	}
@@ -423,7 +443,7 @@ parse_if(ParseState* P) {
 	/* expects to start on token IF */
 	TreeNode* node = new_node(P, NODE_IF);
 	P->token = P->token->next; /* skip to first token of condition */
-	node->pif->condition = parse_until(P, TYPE_OPENCURL);	
+	node->pif->condition = parse_until(P, TOK_OPENCURL);	
 	append_to_block(P, node);
 	jump_in(P, node->pif->block);
 }
@@ -433,7 +453,7 @@ parse_while(ParseState* P) {
 	/* expects to start on token WHILE */
 	TreeNode* node = new_node(P, NODE_WHILE);
 	P->token = P->token->next; /* skip to first token of condition */
-	node->pwhile->condition = parse_until(P, TYPE_OPENCURL);	
+	node->pwhile->condition = parse_until(P, TOK_OPENCURL);	
 	append_to_block(P, node);
 	jump_in(P, node->pwhile->block);
 }
@@ -442,13 +462,19 @@ static void
 parse_function_args(ParseState* P, TreeFunction* func) {
 	/* expects to be on first token of args */
 	/* only instantiate arguments if list isn't empty */
-	if (P->token->type != TYPE_CLOSEPAR) {
-		while (P->token->type != TYPE_CLOSEPAR) {
-			if (P->token->type == TYPE_COMMA) {
+	if (P->token->type != TOK_CLOSEPAR) {
+		while (P->token->type != TOK_CLOSEPAR) {
+			if (P->token->type == TOK_COMMA) {
 				P->token = P->token->next;
 			}
 			/* if true it's a vararg func */
-			if (P->token->type == TYPE_DOTS) {
+			if (P->token->type == TOK_DOTS) {
+				if (!func->is_cfunc) {
+					parse_error(P, "only C functions can be vararg");
+				}
+				P->token = P->token->next;
+				func->is_vararg = 1;
+				break;
 			}
 			TreeDecl* arg = parse_decl(P);
 			arg->offset = func->nargs++;
@@ -502,7 +528,7 @@ parse_return(ParseState* P) {
 	/* expects to be on token RETURN */
 	TreeNode* node = new_node(P, NODE_RETURN);
 	P->token = P->token->next;
-	node->pret->statement = parse_until(P, TYPE_SEMICOLON);
+	node->pret->statement = parse_until(P, TOK_SEMICOLON);
 	append_to_block(P, node);
 }
 
@@ -510,15 +536,15 @@ static void
 parse_statement(ParseState* P) {
 	TreeNode* node;
 	Token* start = P->token;
-	Token* statement = parse_until(P, TYPE_SEMICOLON);
+	Token* statement = parse_until(P, TOK_SEMICOLON);
 	/* check if there is an assignment operator or colon */
 	Token* assign_token = NULL;
 	int is_decl = 0;
 	for (Token* i = statement; i; i = i->next) {
-		if (i->type == TYPE_ASSIGN) {
+		if (i->type == TOK_ASSIGN) {
 			assign_token = i;
 			break;
-		} else if (i->type == TYPE_COLON) {
+		} else if (i->type == TOK_COLON) {
 			is_decl = 1;
 			break;
 		}
@@ -565,7 +591,7 @@ parse_struct_declaration(ParseState* P) {
 	 * has only been declared... still stick it into P->defined_types, 
 	 * it will be written over later when its definition is completed 
 	 */
-	if (P->token->type == TYPE_SEMICOLON) {
+	if (P->token->type == TOK_SEMICOLON) {
 		decl->complete = 0;
 		if (!P->defined_types) {
 			P->defined_types = decl;
@@ -576,13 +602,16 @@ parse_struct_declaration(ParseState* P) {
 		}
 		P->token = P->token->next;
 	/* otherwise it is a complete definition */
-	} else if (P->token->type == TYPE_OPENCURL) {
+	} else if (P->token->type == TOK_OPENCURL) {
 		decl->complete = 1;
 		P->token = P->token->next;
-		while (P->token && P->token->type != TYPE_CLOSECURL) {
+		while (P->token && P->token->type != TOK_CLOSECURL) {
 			TreeDecl* field = parse_decl(P);
 			/* check of an illegal self-reference */
-			if (!strcmp(field->datatype->type_name, decl->type_name)) {
+			if (
+				field->datatype->type == TYPE_STRUCT &&
+				!strcmp(field->datatype->pstruct->type_name, decl->type_name)
+			) {
 				parse_error(P, "struct '%s' has an incomplete type", decl->type_name);
 			}
 			field->offset = decl->size;
@@ -596,7 +625,7 @@ parse_struct_declaration(ParseState* P) {
 			}
 			decl->size += get_variable_size(P, field);
 		}
-		/* if token still exists, it must be TYPE_OPENCURL, advance */
+		/* if token still exists, it must be TOK_OPENCURL, advance */
 		if (P->token) {
 			P->token = P->token->next;
 		}
@@ -653,49 +682,49 @@ generate_tree(Token* tokens) {
 		if (P->token->next && P->token->next->next) {
 			/* special case, check to see if it's a struct declaration */
 			if (
-				P->token->type == TYPE_IDENTIFIER
-				&& P->token->next->type == TYPE_COLON 
-				&& P->token->next->next->type == TYPE_STRUCT
+				P->token->type == TOK_IDENTIFIER
+				&& P->token->next->type == TOK_COLON 
+				&& P->token->next->next->type == TOK_STRUCT
 			) {
 				parse_struct_declaration(P);
 				continue;
 			}
 			/* special case, function declaration */
 			if (
-				P->token->type == TYPE_IDENTIFIER
-				&& P->token->next->type == TYPE_COLON 
-				&& P->token->next->next->type == TYPE_OPENPAR
+				P->token->type == TOK_IDENTIFIER
+				&& P->token->next->type == TOK_COLON 
+				&& P->token->next->next->type == TOK_OPENPAR
 			) {
 				parse_function(P);
 				continue;
 			}
 			/* special case, c function declaration */
 			if (
-				P->token->type == TYPE_IDENTIFIER
-				&& P->token->next->type == TYPE_COLON
-				&& P->token->next->next->type == TYPE_CFUNC
+				P->token->type == TOK_IDENTIFIER
+				&& P->token->next->type == TOK_COLON
+				&& P->token->next->next->type == TOK_CFUNC
 			) {
 				parse_cfunction(P);
 				continue;
 			}
 		}
 		switch (P->token->type) {
-			case TYPE_IF:
+			case TOK_IF:
 				parse_if(P);
 				break;	
-			case TYPE_WHILE:
+			case TOK_WHILE:
 				parse_while(P);
 				break;
-			case TYPE_RETURN:
+			case TOK_RETURN:
 				parse_return(P);
 				break;
-			case TYPE_CLOSECURL:
+			case TOK_CLOSECURL:
 				jump_out(P);
 				if (!P->block) {
 					goto finished;
 				}
 				break;
-			case TYPE_SEMICOLON:
+			case TOK_SEMICOLON:
 				P->token = P->token->next;
 				break;
 			default:

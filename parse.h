@@ -24,8 +24,10 @@ typedef struct TreeStruct TreeStruct;
 typedef struct TreeReturn TreeReturn;
 typedef struct ParseState ParseState;
 typedef enum NodeType NodeType;
+typedef enum TreeType TreeType;
 
 enum NodeType {
+	NODE_NOTYPE,
 	NODE_IF,
 	NODE_WHILE,
 	NODE_FUNCTION,
@@ -33,6 +35,16 @@ enum NodeType {
 	NODE_STATEMENT,
 	NODE_RETURN,
 	NODE_ROOT
+};
+
+enum TreeType {
+	TYPE_NOTYPE,
+	TYPE_INT,
+	TYPE_FLOAT,
+	TYPE_STRING,
+	TYPE_CHAR,
+	TYPE_STRUCT,
+	TYPE_NULL
 };
 
 struct TreeStruct {
@@ -44,7 +56,8 @@ struct TreeStruct {
 };
 
 struct TreeDatatype {
-	char* type_name;
+	TreeType type;
+	TreeStruct* pstruct; /* only applicable if type == TYPE_STRUCT */
 	unsigned int ptr_level;
 	uint32_t modifier;
 	struct ArrayDimension {
@@ -132,5 +145,6 @@ struct ParseState {
 };
 
 ParseState* generate_tree(Token*);
+char* tostring_datatype(TreeDatatype*); /* expose to generate.c */
 
 #endif
