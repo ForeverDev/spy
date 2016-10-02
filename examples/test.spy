@@ -2,17 +2,20 @@ println : cfunc(format : string) -> null;
 print	: cfunc(format : string) -> null;
 println : cfunc(format : string) -> null;
 
-Type : struct {
-	field_int : int;
-	field_ptr : int^;
+Truck : struct {
+
+};
+
+Car : struct {
+	field_int : Truck^;
 };
 
 main : () -> null {
 	
-	object : Type;
+	car : Car;
+	truck : Truck;
 
-	object.field_int = 10;
-	object.field_ptr = &object.field_int;
-	object.field_int = ^object.field_ptr;
+	car.field_int = truck;
+
 		
 }

@@ -868,6 +868,44 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						exp_push(&stack, node);
 						goto no_typecheck;
 					}
+					case TYPE_PERIOD:
+						if (pop[1]->type == EXP_LITERAL) {
+							compile_error(C, "can't use operator '.' on a literal");
+						}
+						/* scan through the children of the parent struct and look for the member */
+						for (TreeDecl* j = pop[1]->pstruct->children; j; j = j->next) {
+							if (!strcmp(j->identifier, pop[0]->pidentifier->word)) {
+								ExpNode* push = malloc(sizeof(ExpNode));
+								push->next = NULL;
+								write(C, "icinc %d\n", j->offset * 8);
+								TreeStruct* member_type = NULL;
+								/* if the member is a struct, don't dereference, it's not a prim. type */
+								if ((member_type = find_type(C, j->datatype->type_name))) {
+									if (j->datatype->ptr_level > 0) {
+										push->type = EXP_DATATYPE;
+										push->pdatatype = j->datatype; 
+									} else {
+										push->type = EXP_STRUCT;
+										push->pstruct = member_type;
+									}
+								/* else, it is a primitive type, dereference */
+								} else {
+									int next_amper = (
+										i->next 
+										&& i->next->type == EXP_OPERATOR
+										&& i->next->poperator->type == TYPE_AMPERSAND
+									);
+									if (!is_lhs && !next_amper) {
+										write(C, "ider\n");
+									}
+									push->type = EXP_DATATYPE;
+									push->pdatatype = j->datatype;
+								}
+								exp_push(&stack, push);
+								goto no_typecheck;
+							}
+						}
+						goto no_typecheck;
 					case TYPE_EQ:
 						write(C, "icmp\n");
 						goto arith_typecheck;
@@ -901,39 +939,6 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					case TYPE_LOGOR:
 						write(C, "lor\n");
 						goto arith_typecheck;
-					case TYPE_PERIOD:
-						if (pop[1]->type == EXP_LITERAL) {
-							compile_error(C, "can't use operator '.' on a literal");
-						}
-						/* scan through the children of the parent struct and look for the member */
-						for (TreeDecl* j = pop[1]->pstruct->children; j; j = j->next) {
-							if (!strcmp(j->identifier, pop[0]->pidentifier->word)) {
-								ExpNode* push = malloc(sizeof(ExpNode));
-								push->next = NULL;
-								write(C, "icinc %d\n", j->offset * 8);
-								TreeStruct* member_type;
-								/* if the member is a struct, don't dereference, it's not a prim. type */
-								if ((member_type = find_type(C, j->datatype->type_name))) {
-									push->type = EXP_STRUCT;
-									push->pstruct = member_type;
-								/* else, it is a primitive type, dereference */
-								} else {
-									int next_amper = (
-										i->next 
-										&& i->next->type == EXP_OPERATOR
-										&& i->next->poperator->type == TYPE_AMPERSAND
-									);
-									if (!is_lhs && !next_amper) {
-										write(C, "ider\n");
-									}
-									push->type = EXP_DATATYPE;
-									push->pdatatype = j->datatype;
-								}
-								exp_push(&stack, push);
-								goto no_typecheck;
-							}
-						}
-						goto no_typecheck;
 					case TYPE_COMMA:	
 						goto no_typecheck;
 				}
@@ -956,11 +961,14 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 			ExpNode* new = malloc(sizeof(ExpNode));
 			new->type = EXP_DATATYPE;
 			new->next = NULL;
+			printf("yeet\n");
 			switch (i->value->type) {
 				case EXP_FUNC_CALL:
+					printf("1\n");
 					new->pdatatype = i->value->pcall->func->return_type;
 					break;
 				case EXP_LITERAL:
+					printf("2\n");
 					new->pdatatype = malloc(sizeof(TreeDatatype));
 					new->pdatatype->type_name = (
 						i->value->pliteral->type == TYPE_INT ? "int" :
@@ -970,9 +978,15 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					new->pdatatype->modifier = 0;
 					break;
 				case EXP_VARIABLE:
+					printf("3\n");
 					new->pdatatype = i->value->pvariable->datatype;
 					break;
+				case EXP_STRUCT:
+					printf("WOOOOO %s\n", i->value->pstruct->type_name);
+					printf("5\n");
+					break;
 				case EXP_OPERATOR:
+					printf("4\n");
 					break;
 			}
 			exp_push(&final_stack, new);
@@ -984,6 +998,8 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 	for (ExpStack* i = final_stack; i && i->next; i = i->next) {
 		i->value->next = i->next->value;
 	}
+
+	printf("HAHAHA %p\n", final_stack->value->pdatatype);
 
 	return final_stack ? final_stack->value : NULL;
 }
@@ -1056,6 +1072,7 @@ generate_assignment(CompileState* C) {
 	if (!(lhs->type == EXP_DATATYPE && rhs->type == EXP_DATATYPE)) {
 		compile_error(C, "didn't pop LHS and RHS as datatypes...");
 	}
+	printf("DATES %p %p\n", lhs->pdatatype, rhs->pdatatype);
 	if (!identical_types(lhs->pdatatype, rhs->pdatatype)) {
 		compile_error(C,
 			"attempt to assign incompatible types, '%s' to '%s'",
