@@ -10,6 +10,8 @@ static void parse_function(ParseState*);
 static void parse_statement(ParseState*);
 static void parse_struct_declaration(ParseState*);
 static void parse_return(ParseState*);
+static void parse_cfunction(ParseState*);
+static void parse_function_args(ParseState*, TreeFunction*);
 static void jump_out(ParseState*);
 static void jump_in(ParseState*, TreeBlock*);
 static void string_token(Token*, Token*);
@@ -437,28 +439,38 @@ parse_while(ParseState* P) {
 }
 
 static void
-parse_function(ParseState* P) {
-	/* expects to start on token IDENTIFIER */
-	TreeNode* node = new_node(P, NODE_FUNCTION);
-	node->pfunc->identifier = P->token->word;
-	P->token = P->token->next->next->next;
+parse_function_args(ParseState* P, TreeFunction* func) {
+	/* expects to be on first token of args */
 	/* only instantiate arguments if list isn't empty */
 	if (P->token->type != TYPE_CLOSEPAR) {
 		while (P->token->type != TYPE_CLOSEPAR) {
 			if (P->token->type == TYPE_COMMA) {
 				P->token = P->token->next;
 			}
+			/* if true it's a vararg func */
+			if (P->token->type == TYPE_DOTS) {
+			}
 			TreeDecl* arg = parse_decl(P);
-			arg->offset = node->pfunc->nargs++;
-			if (!node->pfunc->arguments) {
-				node->pfunc->arguments = arg;
+			arg->offset = func->nargs++;
+			if (!func->arguments) {
+				func->arguments = arg;
 			} else {
 				TreeDecl* i;
-				for (i = node->pfunc->arguments; i->next; i = i->next);
+				for (i = func->arguments; i->next; i = i->next);
 				i->next = arg;
 			}
 		}
 	}
+}
+
+static void
+parse_function(ParseState* P) {
+	/* expects to start on token IDENTIFIER */
+	TreeNode* node = new_node(P, NODE_FUNCTION);
+	node->pfunc->identifier = P->token->word;
+	node->pfunc->is_cfunc = 0;
+	P->token = P->token->next->next->next;
+	parse_function_args(P, node->pfunc);
 	/* skip ')' and '->' */
 	P->token = P->token->next->next;
 	node->pfunc->return_type = parse_datatype(P);
@@ -467,6 +479,22 @@ parse_function(ParseState* P) {
 	P->func = node->pfunc;
 	append_to_block(P, node);
 	jump_in(P, node->pfunc->block);
+}
+
+static void
+parse_cfunction(ParseState* P) {
+	/* expects to be on token IDENTIFIER */
+	TreeNode* node = new_node(P, NODE_FUNCTION);
+	node->pfunc->identifier = P->token->word;
+	node->pfunc->is_cfunc = 1;
+	P->token = P->token->next->next->next->next; /* skip to first token in args */
+	parse_function_args(P, node->pfunc);
+	P->token = P->token->next->next;
+	node->pfunc->return_type = parse_datatype(P);
+	/* now on semicolon */
+	P->token = P->token->next;
+	append_to_block(P, node);
+	/* don't jump in, it's just a declaration */
 }
 
 static void
@@ -639,6 +667,15 @@ generate_tree(Token* tokens) {
 				&& P->token->next->next->type == TYPE_OPENPAR
 			) {
 				parse_function(P);
+				continue;
+			}
+			/* special case, c function declaration */
+			if (
+				P->token->type == TYPE_IDENTIFIER
+				&& P->token->next->type == TYPE_COLON
+				&& P->token->next->next->type == TYPE_CFUNC
+			) {
+				parse_cfunction(P);
 				continue;
 			}
 		}

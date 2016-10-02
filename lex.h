@@ -21,6 +21,7 @@ typedef struct Token Token;
 #define TYPE_FUNCCALL	15
 #define TYPE_STRUCT		16
 #define TYPE_FLOAT		17
+#define TYPE_CFUNC		18
 #define TYPE_SPACE		32
 #define TYPE_EXCL		33
 #define TYPE_DQUOTE		34
@@ -50,6 +51,7 @@ typedef struct Token Token;
 #define TYPE_UPCARROT	94
 #define TYPE_UNDERSCORE	95
 #define TYPE_IFORGOTLOL	96
+#define TYPE_DOTS		97
 #define TYPE_OPENCURL	123
 #define TYPE_LINE		124
 #define TYPE_CLOSECURL	125

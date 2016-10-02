@@ -89,6 +89,8 @@ struct TreeFunction {
 	unsigned int nargs;
 	unsigned int nlocals; /* doesn't include nargs */
 	unsigned int reserve_space;
+	unsigned int is_cfunc;
+	unsigned int is_vararg; /* only C funcs can be vararg */
 	TreeDatatype* return_type;
 	TreeDecl* arguments;
 	TreeBlock* block;

@@ -1,12 +1,18 @@
-Vec : struct {
-	x : const int;
-	y : int;
-}
+println : cfunc(format : string) -> null;
+print	: cfunc(format : string) -> null;
+println : cfunc(format : string) -> null;
+
+Type : struct {
+	field_int : int;
+	field_ptr : int^;
+};
 
 main : () -> null {
-
-	v : Vec;
 	
-	v.x = 10.0;
+	object : Type;
+
+	object.field_int = 10;
+	object.field_ptr = &object.field_int;
+	object.field_int = ^object.field_ptr;
 		
 }

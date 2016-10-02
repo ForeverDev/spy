@@ -28,6 +28,7 @@ struct CompileState {
 	InsStack* ins_stack;
 	unsigned int depth;
 	unsigned int label_count;
+	unsigned int literal_count;
 	unsigned int return_label;
 	FILE* fout;
 };

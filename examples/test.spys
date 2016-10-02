@@ -1,10 +1,35 @@
+let __CFUNC__println "println"
+let __CFUNC__print "print"
+let __CFUNC__println "println"
 jmp __ENTRY_POINT__
 
 
 __FUNC__main:
 res 2
- ; -----> v . x =
+ ; -----> object . field_int =
 ilea 0
 icinc 0
- ; -----> 10.0 
-ipush 10.0
+ ; -----> 10 
+ipush 10
+isave
+ ; -----> object . field_ptr =
+ilea 0
+icinc 8
+ ; -----> & object . field_int 
+ilea 0
+icinc 0
+isave
+ ; -----> object . field_int =
+ilea 0
+icinc 0
+ ; -----> ^ object . field_ptr 
+ilea 0
+icinc 8
+ider
+ider
+isave
+__LABEL__0:
+iret
+
+__ENTRY_POINT__:
+call __FUNC__main, 0

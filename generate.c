@@ -7,6 +7,7 @@
 #define LABEL_FORMAT "__LABEL__%u"
 #define FUNC_FORMAT "__FUNC__%s"
 #define CFUNC_FORMAT "__CFUNC__%s"
+#define STR_FORMAT "__STR__%d"
 #define DEF_FUNC FUNC_FORMAT ":"
 #define DEF_LABEL LABEL_FORMAT ":"
 #define JZ_LABEL "jz " LABEL_FORMAT
@@ -79,6 +80,7 @@ static void token_line(CompileState*, Token*);
 static int identical_types(TreeDatatype*, TreeDatatype*);
 static char* tostring_datatype(TreeDatatype*);
 static TreeDatatype* copy_datatype(TreeDatatype*);
+static void literal_scan(CompileState*);
 
 /* generating (etc) functions */
 static void generate_if(CompileState*);
@@ -170,6 +172,42 @@ static void
 token_line(CompileState* C, Token* token) {
 	for (Token* i = token; i; i = i->next) {
 		write(C, "%s ", i->word);
+	}
+}
+
+/* finds literals and adds them to the .spys file */
+static void
+literal_scan(CompileState* C) {
+	Token* scan[4] = {0};
+	switch (C->focus->type) {
+		case NODE_IF:
+			scan[0] = C->focus->pif->condition;
+			break;
+		case NODE_WHILE:
+			scan[0] = C->focus->pwhile->condition;
+			break;
+		case NODE_ASSIGN:
+			scan[0] = C->focus->pass->rhs;
+			break;
+		case NODE_RETURN:
+			scan[0] = C->focus->pret->statement;
+			break;
+		case NODE_STATEMENT:
+			scan[0] = C->focus->pstate->statement;
+			break;
+	}
+	for (int i = 0; i < 4 && scan[i]; i++) {
+		for (Token* j = scan[i]; j; j = j->next) {
+			if (j->type == TYPE_STRING) {
+				write(C, 
+					"let " STR_FORMAT " \"%s\"\n",
+					C->literal_count,
+					j->word
+				);
+				j->word = malloc(32);
+				sprintf(j->word, STR_FORMAT, C->literal_count++);
+			}	
+		}
 	}
 }
 
@@ -595,7 +633,11 @@ postfix_expression(CompileState* C, Token* expression) {
 			node->pidentifier = C->token; // find_local(C, C->token->word);
 			node->next = NULL;
 			exp_push(&postfix, node);
-		} else if (C->token->type == TYPE_INT || C->token->type == TYPE_FLOAT) {
+		} else if (
+			C->token->type == TYPE_INT 
+			|| C->token->type == TYPE_FLOAT
+			|| C->token->type == TYPE_STRING
+		) {
 			node = malloc(sizeof(ExpNode));
 			node->type = EXP_LITERAL;
 			node->pliteral = C->token;
@@ -690,7 +732,11 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					declared_types = declared_types->next;
 					at_arg++;
 				}
-				write(C, "call %s, %d\n", i->pcall->func->identifier, ncall_args);
+				if (i->pcall->func->is_cfunc) {
+					write(C, "ccall " CFUNC_FORMAT ", %d\n", i->pcall->func->identifier, ncall_args); 
+				} else {
+					write(C, "call " FUNC_FORMAT ", %d\n", i->pcall->func->identifier, ncall_args);
+				}
 				ExpNode* node = malloc(sizeof(ExpNode));
 				node->type = EXP_DATATYPE;
 				node->pdatatype = i->pcall->func->return_type;
@@ -849,6 +895,12 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					case TYPE_LE:
 						write(C, "ile\n");
 						goto arith_typecheck;
+					case TYPE_LOGAND:
+						write(C, "land\n");
+						goto arith_typecheck;
+					case TYPE_LOGOR:
+						write(C, "lor\n");
+						goto arith_typecheck;
 					case TYPE_PERIOD:
 						if (pop[1]->type == EXP_LITERAL) {
 							compile_error(C, "can't use operator '.' on a literal");
@@ -965,6 +1017,10 @@ generate_while(CompileState* C) {
 
 static void
 generate_function_decl(CompileState* C) {
+	/* don't generate code for a C function */
+	if (C->focus->pfunc->is_cfunc) {
+		return;
+	}
 	write(C, "\n\n" DEF_FUNC "\n", C->focus->pfunc->identifier);
 	C->return_label = C->label_count++;
 	C->func = C->focus->pfunc;
@@ -1048,6 +1104,7 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 	C->ins_stack = NULL;
 	C->depth = 0;
 	C->label_count = 0;
+	C->literal_count = 0;
 	C->return_label = 0;
 	C->token = NULL;
 	if (!C->fout) {
@@ -1055,10 +1112,28 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 		exit(1);
 	}
 
-	write(C, "jmp __ENTRY_POINT__\n");
-
 	int advance_success = 1;
 	
+	/* first walk the tree and look for cfunc declarations */
+	while (advance_success) {
+		/* check for c func */
+		if (C->focus->type == NODE_FUNCTION && C->focus->pfunc->is_cfunc) {
+			write(C, 
+				"let " CFUNC_FORMAT " \"%s\"\n",
+				C->focus->pfunc->identifier,
+				C->focus->pfunc->identifier
+			);	
+		/* check for string literal */
+		} else {
+			literal_scan(C);
+		}
+		advance_success = advance(C);
+	}
+
+	advance_success = 1;
+	C->focus = P->root;
+	write(C, "jmp __ENTRY_POINT__\n");
+
 	while (advance_success) {
 		switch (C->focus->type) {
 			case NODE_ROOT:

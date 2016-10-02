@@ -75,6 +75,12 @@ generate_tokens(const char* filename) {
 		} else if (*contents == '\t' || *contents == 32 || *contents == 13) {
 			contents++;
 			continue;
+		} else if (*contents && *(contents + 1) && *(contents + 2) && !strncmp(contents, "...", 3)) {
+			contents += 3;
+			buf = calloc(1, 4);
+			strcpy(buf, "...");
+			buf[3] = 0;
+			append_token(tokens, buf, line, TYPE_DOTS);
 		} else if (isalpha(*contents) || *contents == '_' || *contents == '"') {
 			int is_string = 0;
 			if (*contents == '"') {
@@ -112,7 +118,8 @@ generate_tokens(const char* filename) {
 				!strcmp(buf, "continue") ? TYPE_CONTINUE : 
 				!strcmp(buf, "break") ? TYPE_BREAK : 
 				!strcmp(buf, "for") ? TYPE_FOR : 
-				!strcmp(buf, "struct") ? TYPE_STRUCT : TYPE_IDENTIFIER
+				!strcmp(buf, "struct") ? TYPE_STRUCT : 
+				!strcmp(buf, "cfunc") ? TYPE_CFUNC : TYPE_IDENTIFIER
 			));
 		} else if (isdigit(*contents)) {
 			start = contents;
