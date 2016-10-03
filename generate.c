@@ -1014,7 +1014,6 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 							break;
 					}
 				}
-				break;
 			}
 		}
 	}

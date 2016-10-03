@@ -5,14 +5,15 @@ let __STR__1 "printed by pointer: %s (age %d) was born in %s, a city with a popu
 let __STR__2 "by reference: %s grew %d years older."
 let __STR__3 "by pointer: %s grew %d years older."
 let __STR__4 "CITY: %s"
-let __STR__5 "\n\nSpyre example program: passing data by reference and by pointer\n"
-let __STR__6 "Billy"
-let __STR__7 "Boston"
-let __STR__8 ""
+let __STR__5 "LOL"
+let __STR__6 "\n\nSpyre example program: passing data by reference and by pointer\n"
+let __STR__7 "Billy"
+let __STR__8 "Boston"
 let __STR__9 ""
-let __STR__10 "\n"
-let __STR__11 "some_integer is %d"
-let __STR__12 "some_integer is now %d\n\n"
+let __STR__10 ""
+let __STR__11 "\n"
+let __STR__12 "some_integer is %d"
+let __STR__13 "some_integer is now %d\n\n"
 jmp __ENTRY_POINT__
 
 
@@ -168,6 +169,12 @@ ilload 0
 icinc 0
 ider
 ccall __CFUNC__println, 2
+ ; -----> c.name=
+ilload 0
+icinc 0
+ ; -----> __STR__5
+ipush __STR__5
+isave
 __LABEL__5:
 iret
 
@@ -177,14 +184,14 @@ __FUNC__main:
 res 6
 ilea 1
 ilsave 0
- ; -----> println(__STR__5)
-ipush __STR__5
+ ; -----> println(__STR__6)
+ipush __STR__6
 ccall __CFUNC__println, 1
  ; -----> billy.name=
 ilload 0
 icinc 0
- ; -----> __STR__6
-ipush __STR__6
+ ; -----> __STR__7
+ipush __STR__7
 isave
  ; -----> billy.age=
 ilload 0
@@ -196,8 +203,8 @@ isave
 ilload 0
 icinc 16
 icinc 0
- ; -----> __STR__7
-ipush __STR__7
+ ; -----> __STR__8
+ipush __STR__8
 isave
  ; -----> billy.birth_place.population=
 ilload 0
@@ -212,8 +219,8 @@ call __FUNC__print_by_reference, 1
  ; -----> print_by_pointer(&billy)
 ilea 0
 call __FUNC__print_by_pointer, 1
- ; -----> println(__STR__8)
-ipush __STR__8
+ ; -----> println(__STR__9)
+ipush __STR__9
 ccall __CFUNC__println, 1
  ; -----> grow_older_by_reference(billy,3)
 ilload 0
@@ -223,8 +230,8 @@ call __FUNC__grow_older_by_reference, 2
 ilea 0
 ipush 4
 call __FUNC__grow_older_by_pointer, 2
- ; -----> println(__STR__9)
-ipush __STR__9
+ ; -----> println(__STR__10)
+ipush __STR__10
 ccall __CFUNC__println, 1
  ; -----> print_by_reference(billy)
 ilload 0
@@ -232,23 +239,23 @@ call __FUNC__print_by_reference, 1
  ; -----> print_by_pointer(&billy)
 ilea 0
 call __FUNC__print_by_pointer, 1
- ; -----> println(__STR__10)
-ipush __STR__10
+ ; -----> println(__STR__11)
+ipush __STR__11
 ccall __CFUNC__println, 1
  ; -----> some_integer=
 ilea 5
  ; -----> 10
 ipush 10
 isave
- ; -----> println(__STR__11,some_integer)
-ipush __STR__11
+ ; -----> println(__STR__12,some_integer)
+ipush __STR__12
 ilload 5
 ccall __CFUNC__println, 2
  ; -----> increment_integer(&some_integer)
 ilea 5
 call __FUNC__increment_integer, 1
- ; -----> println(__STR__12,some_integer)
-ipush __STR__12
+ ; -----> println(__STR__13,some_integer)
+ipush __STR__13
 ilload 5
 ccall __CFUNC__println, 2
  ; -----> testing(billy.birth_place)

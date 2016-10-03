@@ -1,16 +1,8 @@
 println : cfunc(format : string, ...) -> null;
 print : cfunc(format : string, ...) -> null;
 
-City : struct {
-	name : string;
-	population : int;	
-}
-
-Person : struct {
-	name : string;
-	age : int;
-	birth_place : City;
-}
+City : struct;
+Person : struct;
 
 print_by_reference : (p : Person) -> null {
 	println(
@@ -48,6 +40,18 @@ increment_integer : (n : int^) -> null {
 
 testing : (c : City) -> null {
 	println("CITY: %s", c.name);
+	c.name = "LOL";
+}
+
+City : struct {
+	name : string;
+	population : int;	
+}
+
+Person : struct {
+	name : string;
+	age : int;
+	birth_place : City;
 }
 
 main : () -> null {
