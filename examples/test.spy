@@ -12,10 +12,6 @@ Person : struct {
 	birth_place : City;
 }
 
-test : (c : City^) -> null {
-	(^c).population = (^c).population + 1;
-}
-
 print_by_reference : (p : Person) -> null {
 	println(
 		"printed by reference: %s (age %d) was born in %s, a city with a population of %d.",
@@ -36,9 +32,14 @@ print_by_pointer : (p : Person^) -> null {
 	);
 }
 
-grow_older : (p : Person, years : int) -> null {
-	println("%s grew %d years older.", p.name, years);
+grow_older_by_reference : (p : Person, years : int) -> null {
+	println("by reference: %s grew %d years older.", p.name, years);
 	p.age = p.age + years;
+}
+
+grow_older_by_pointer : (p : Person^, years : int) -> null {
+	println("by pointer: %s grew %d years older.", (^p).name, years);
+	(^p).age = (^p).age + years;
 }
 
 main : () -> null {
@@ -57,7 +58,8 @@ main : () -> null {
 
 	println("");
 
-	grow_older(billy, 5);
+	grow_older_by_reference(billy, 3);
+	grow_older_by_pointer(&billy, 4);
 
 	println("");
 
