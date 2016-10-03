@@ -10,6 +10,8 @@ let __STR__6 "Boston"
 let __STR__7 ""
 let __STR__8 ""
 let __STR__9 "\n"
+let __STR__10 "some_integer is %d"
+let __STR__11 "some_integer is now %d\n\n"
 jmp __ENTRY_POINT__
 
 
@@ -137,8 +139,26 @@ iret
 
 
 
+__FUNC__increment_integer:
+res 1
+iarg 0
+ilsave 0
+ ; -----> ^x=
+ilea 0
+ider
+ ; -----> ^x+1
+ilload 0
+ider
+ipush 1
+iadd
+isave
+__LABEL__4:
+iret
+
+
+
 __FUNC__main:
-res 5
+res 6
 ilea 1
 ilsave 0
  ; -----> println(__STR__4)
@@ -199,7 +219,23 @@ call __FUNC__print_by_pointer, 1
  ; -----> println(__STR__9)
 ipush __STR__9
 ccall __CFUNC__println, 1
-__LABEL__4:
+ ; -----> some_integer=
+ilea 5
+ ; -----> 10
+ipush 10
+isave
+ ; -----> println(__STR__10,some_integer)
+ipush __STR__10
+ilload 5
+ccall __CFUNC__println, 2
+ ; -----> increment_integer(&some_integer)
+ilea 5
+call __FUNC__increment_integer, 1
+ ; -----> println(__STR__11,some_integer)
+ipush __STR__11
+ilload 5
+ccall __CFUNC__println, 2
+__LABEL__5:
 iret
 
 __ENTRY_POINT__:
