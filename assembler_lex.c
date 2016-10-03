@@ -18,6 +18,7 @@ AsmLexer_convertToAssemblerTokens(const char* source) {
 			continue;
 		} else if (c == ';') {
 			while (*source && *source != '\n') source++;
+		/*
 		} else if (c == '\'') {
 			char* word = (char *)malloc(128);
 			if (*source == '\\') {
@@ -33,8 +34,10 @@ AsmLexer_convertToAssemblerTokens(const char* source) {
 			} else {
 				sprintf(word, "%d", *source++);
 			}
+			printf("FOUND %s\n", word);
 			source++;
 			AsmLexer_appendAssemblerToken(&L, word, NUMBER);
+		*/
 		} else if (c == '"') {
 			char* word;
 			size_t len = 0;

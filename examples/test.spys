@@ -1,21 +1,45 @@
 let __CFUNC__println "println"
-let __STR__0 "%s %s, born in %s, a city with a population of %d."
-let __STR__1 "%s %s, born in %s, a city with a population of %d."
-let __STR__2 "Billy"
-let __STR__3 "Wilson"
-let __STR__4 "Boston"
-let __STR__5 "Jason"
-let __STR__6 "Robinson"
-let __STR__7 "Omaha"
+let __CFUNC__print "print"
+let __STR__0 "printed by reference: %s (age %d) was born in %s, a city with a population of %d."
+let __STR__1 "printed by pointer: %s (age %d) was born in %s, a city with a population of %d."
+let __STR__2 "%s grew %d years older."
+let __STR__3 "\n\nSpyre example program: passing structs by reference and by pointer\n"
+let __STR__4 "Billy"
+let __STR__5 "Boston"
+let __STR__6 ""
+let __STR__7 ""
+let __STR__8 "\n"
 jmp __ENTRY_POINT__
+
+
+__FUNC__test:
+res 1
+iarg 0
+ilsave 0
+ ; -----> (^c).population=
+ilea 0
+ider
+ider
+icinc 8
+ ; -----> (^c).population+1
+ilload 0
+ider
+icinc 8
+ider
+ipush 1
+iadd
+isave
+__LABEL__0:
+iret
+
 
 
 __FUNC__print_by_reference:
 res 1
 iarg 0
 ilsave 0
- ; -----> println(__STR__0,p.first_name,
- ; -----> 	p.last_name,p.birth_place.name
+ ; -----> println(__STR__0,p.name,
+ ; -----> 	p.age,p.birth_place.name
  ; -----> 	,p.birth_place.population)
 ipush __STR__0
 ilload 0
@@ -33,7 +57,7 @@ icinc 16
 icinc 8
 ider
 ccall __CFUNC__println, 5
-__LABEL__0:
+__LABEL__1:
 iret
 
 
@@ -43,7 +67,7 @@ res 1
 iarg 0
 ilsave 0
  ; -----> println(__STR__1,(^p)
- ; -----> 	.first_name,(^p).last_name
+ ; -----> 	.name,(^p).age
  ; -----> 	,(^p).birth_place.name
  ; -----> 	,(^p).birth_place.population
  ; -----> 	)
@@ -67,35 +91,65 @@ icinc 16
 icinc 8
 ider
 ccall __CFUNC__println, 5
-__LABEL__1:
+__LABEL__2:
+iret
+
+
+
+__FUNC__grow_older:
+res 2
+iarg 0
+ilsave 0
+iarg 1
+ilsave 1
+ ; -----> println(__STR__2,p.name,
+ ; -----> 	years)
+ipush __STR__2
+ilload 0
+icinc 0
+ider
+ilload 1
+ccall __CFUNC__println, 3
+ ; -----> p.age=
+ilload 0
+icinc 8
+ ; -----> p.age+years
+ilload 0
+icinc 8
+ider
+ilload 1
+iadd
+isave
+__LABEL__3:
 iret
 
 
 
 __FUNC__main:
-res 10
+res 5
 ilea 1
 ilsave 0
-ilea 6
-ilsave 5
- ; -----> billy.first_name=
+ ; -----> println(__STR__3)
+ipush __STR__3
+ccall __CFUNC__println, 1
+ ; -----> billy.name=
 ilload 0
 icinc 0
- ; -----> __STR__2
-ipush __STR__2
+ ; -----> __STR__4
+ipush __STR__4
 isave
- ; -----> billy.last_name=
+ ; -----> billy.age=
 ilload 0
 icinc 8
- ; -----> __STR__3
-ipush __STR__3
+ ; -----> 39
+ipush 39
 isave
  ; -----> billy.birth_place.name=
 ilload 0
 icinc 16
 icinc 0
- ; -----> __STR__4
-ipush __STR__4
+ ; -----> __STR__5
+ipush __STR__5
 isave
  ; -----> billy.birth_place.population=
 ilload 0
@@ -104,45 +158,32 @@ icinc 8
  ; -----> 656000
 ipush 656000
 isave
- ; -----> jason.first_name=
-ilload 5
-icinc 0
- ; -----> __STR__5
-ipush __STR__5
-isave
- ; -----> jason.last_name=
-ilload 5
-icinc 8
- ; -----> __STR__6
-ipush __STR__6
-isave
- ; -----> jason.birth_place.name=
-ilload 5
-icinc 16
-icinc 0
- ; -----> __STR__7
-ipush __STR__7
-isave
- ; -----> jason.birth_place.population=
-ilload 5
-icinc 16
-icinc 8
- ; -----> 434000
-ipush 434000
-isave
  ; -----> print_by_reference(billy)
 ilload 0
 call __FUNC__print_by_reference, 1
  ; -----> print_by_pointer(&billy)
 ilea 0
 call __FUNC__print_by_pointer, 1
- ; -----> print_by_reference(jason)
-ilload 5
+ ; -----> println(__STR__6)
+ipush __STR__6
+ccall __CFUNC__println, 1
+ ; -----> grow_older(billy,5)
+ilload 0
+ipush 5
+call __FUNC__grow_older, 2
+ ; -----> println(__STR__7)
+ipush __STR__7
+ccall __CFUNC__println, 1
+ ; -----> print_by_reference(billy)
+ilload 0
 call __FUNC__print_by_reference, 1
- ; -----> print_by_pointer(&jason)
-ilea 5
+ ; -----> print_by_pointer(&billy)
+ilea 0
 call __FUNC__print_by_pointer, 1
-__LABEL__2:
+ ; -----> println(__STR__8)
+ipush __STR__8
+ccall __CFUNC__println, 1
+__LABEL__4:
 iret
 
 __ENTRY_POINT__:

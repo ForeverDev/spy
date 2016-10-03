@@ -757,7 +757,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					compile_error(C,
 						"incorrect number of arguments passed to function '%s', expected %d, got %d",
 						func->identifier,
-						node->pcall->argument,
+						func->nargs,
 						n_call_args
 					);
 				}

@@ -1,4 +1,5 @@
 println : cfunc(format : string, ...) -> null;
+print : cfunc(format : string, ...) -> null;
 
 City : struct {
 	name : string;
@@ -6,16 +7,20 @@ City : struct {
 }
 
 Person : struct {
-	first_name : string;
-	last_name : string;
+	name : string;
+	age : int;
 	birth_place : City;
+}
+
+test : (c : City^) -> null {
+	(^c).population = (^c).population + 1;
 }
 
 print_by_reference : (p : Person) -> null {
 	println(
-		"%s %s, born in %s, a city with a population of %d.",
-		p.first_name,
-		p.last_name,
+		"printed by reference: %s (age %d) was born in %s, a city with a population of %d.",
+		p.name,
+		p.age,
 		p.birth_place.name,
 		p.birth_place.population
 	);
@@ -23,32 +28,42 @@ print_by_reference : (p : Person) -> null {
 
 print_by_pointer : (p : Person^) -> null {
 	println(
-		"%s %s, born in %s, a city with a population of %d.",
-		(^p).first_name,
-		(^p).last_name,
+		"printed by pointer: %s (age %d) was born in %s, a city with a population of %d.",
+		(^p).name,
+		(^p).age,
 		(^p).birth_place.name,
 		(^p).birth_place.population
 	);
 }
 
+grow_older : (p : Person, years : int) -> null {
+	println("%s grew %d years older.", p.name, years);
+	p.age = p.age + years;
+}
+
 main : () -> null {
+	
+	println("\n\nSpyre example program: passing structs by reference and by pointer\n");
 
 	billy : Person;
-	jason : Person;
 
-	billy.first_name = "Billy";
-	billy.last_name = "Wilson";
+	billy.name = "Billy";
+	billy.age = 39;
 	billy.birth_place.name = "Boston";
 	billy.birth_place.population = 656000;
-
-	jason.first_name = "Jason";
-	jason.last_name = "Robinson";
-	jason.birth_place.name = "Omaha";
-	jason.birth_place.population = 434000;
 
 	print_by_reference(billy);
 	print_by_pointer(&billy);
 
-	print_by_reference(jason);
-	print_by_pointer(&jason);
+	println("");
+
+	grow_older(billy, 5);
+
+	println("");
+
+	print_by_reference(billy);
+	print_by_pointer(&billy);
+	
+	println("\n");
+
 }
