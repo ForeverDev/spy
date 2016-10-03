@@ -61,6 +61,9 @@ get_variable_size(ParseState* P, TreeDecl* variable) {
 	if (variable->datatype->type != TYPE_STRUCT) {
 		return 1;
 	} 
+	if (variable->datatype->ptr_level > 0) {
+		return 1;
+	}
 	return variable->datatype->pstruct->size;
 }
 
@@ -125,6 +128,9 @@ register_local(ParseState* P, TreeDecl* local) {
 	}
 	P->func->nlocals++;
 	P->func->reserve_space += get_variable_size(P, local);
+	if (local->datatype->type == TYPE_STRUCT && local->datatype->ptr_level == 0) {
+		P->func->reserve_space++;
+	}
 	local->next = NULL;
 	if (!P->block->locals) {
 		P->block->locals = local;
@@ -497,6 +503,7 @@ parse_function(ParseState* P) {
 	node->pfunc->is_cfunc = 0;
 	P->token = P->token->next->next->next;
 	parse_function_args(P, node->pfunc);
+	node->pfunc->reserve_space += node->pfunc->nargs;
 	/* skip ')' and '->' */
 	P->token = P->token->next->next;
 	node->pfunc->return_type = parse_datatype(P);

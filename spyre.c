@@ -431,6 +431,7 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 		SpyCFunction* cf = S.c_functions;
 		while (cf && strcmp(cf->identifier, (const char *)&S.memory[name_index])) cf = cf->next;
 		if (!cf) {
+			printf("%d\n", name_index);
 			Spy_crash(&S, "Attempt to call undefined C function '%s'\n", &S.memory[name_index]);
 		}
 		cf->function(&S);

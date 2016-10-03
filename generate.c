@@ -83,6 +83,7 @@ static void token_line(CompileState*, Token*);
 static int identical_types(TreeDatatype*, TreeDatatype*);
 static TreeDatatype* copy_datatype(TreeDatatype*);
 static void literal_scan(CompileState*);
+static void init_declarations(CompileState*, TreeBlock*);
 static TreeDatatype* raw_datatype(CompileState*, ExpNode*);
 
 /* generating (etc) functions */
@@ -173,8 +174,13 @@ comment(CompileState* C, const char* format, ...) {
 
 static void
 token_line(CompileState* C, Token* token) {
+	int index = 0;
 	for (Token* i = token; i; i = i->next) {
-		write(C, "%s ", i->word);
+		if ((++index) % 9 == 0) {
+			write(C, "\n");
+			comment(C, "\t");
+		}
+		write(C, "%s", i->word);
 	}
 }
 
@@ -217,34 +223,14 @@ literal_scan(CompileState* C) {
 	for (int i = 0; i < 4 && scan[i]; i++) {
 		for (Token* j = scan[i]; j; j = j->next) {
 			if (j->type == TOK_STRING) {
-				int already_exists = 0;
-				for (StringList* k = list; list; list = list->next) {
-					if (!strcmp(k->str, j->word)) {
-						already_exists = 1;
-						break;
-					}
-				}
-				if (already_exists) {
-					continue;
-				}
-				write(C, 
-					"let " STR_FORMAT " \"%s\"\n",
-					C->literal_count,
-					j->word
-				);
 				char* saved_word = j->word;
 				j->word = malloc(32);
-				sprintf(j->word, STR_FORMAT, C->literal_count++);
-				StringList* append = malloc(sizeof(StringList));
-				append->str = saved_word;
-				append->next = NULL;
-				if (!list) {
-					list = append;
-				} else {
-					StringList* at;
-					for (at = list; at->next; at = at->next);
-					at->next = append;
-				}
+				sprintf(j->word, STR_FORMAT, C->literal_count);
+				write(C, 
+					"let " STR_FORMAT " \"%s\"\n",
+					C->literal_count++,
+					saved_word	
+				);
 			}	
 		}
 	}
@@ -440,6 +426,36 @@ block_empty(CompileState* C) {
 	);
 }
 
+/* if a struct is declared, we need to make sure that the
+ * variable is really just a pointer referring to the memory
+ * on the stack
+ */
+static void
+init_declarations(CompileState* C, TreeBlock* block) {
+	if (!block) return;
+	for (TreeDecl* i = block->locals; i; i = i->next) {
+		/* if we find a struct declaration... */
+		if (i->datatype->type == TYPE_STRUCT && i->datatype->ptr_level == 0) {
+			/* the memory on the stack is one ahead of the pointer */
+			write(C, "ilea %d\n", i->offset + 1);
+			write(C, "ilsave %d\n", i->offset);
+		}
+	}
+	for (TreeNode* i = block->children; i; i = i->next) {
+		switch (i->type) {
+			case NODE_IF:
+				init_declarations(C, i->pif->block);
+				break;
+			case NODE_WHILE:
+				init_declarations(C, i->pwhile->block);
+				break;
+			case NODE_FUNCTION:
+				init_declarations(C, i->pfunc->block);
+				break;
+		}
+	}
+}
+
 /* RETURN: 
  *	1 -> advance success
  *	0 -> no possible advance, tree fully walked
@@ -579,28 +595,28 @@ postfix_expression(CompileState* C, Token* expression) {
 	static const ExpOperator ops[256] = {
 		/* 1 = left, 2 = right */
 		[TOK_COMMA]			= {1, ASSOC_LEFT},
-		[TOK_ASSIGN]		= {2, ASSOC_LEFT},
-		[TOK_LOGAND]		= {2, ASSOC_LEFT},
-		[TOK_LOGOR]			= {2, ASSOC_LEFT},
-		[TOK_EQ]			= {3, ASSOC_LEFT},
-		[TOK_NOTEQ]			= {3, ASSOC_LEFT},
-		[TOK_PERIOD]		= {4, ASSOC_LEFT},
-		[TOK_GT]			= {5, ASSOC_LEFT},
-		[TOK_GE]			= {5, ASSOC_LEFT},
-		[TOK_LT]			= {5, ASSOC_LEFT},
-		[TOK_LE]			= {5, ASSOC_LEFT},
-		[TOK_LINE]			= {6, ASSOC_LEFT},
-		[TOK_UPCARROT]		= {6, ASSOC_LEFT},
-		[TOK_SHL]			= {6, ASSOC_LEFT},
-		[TOK_SHR]			= {6, ASSOC_LEFT},
-		[TOK_PLUS]			= {7, ASSOC_LEFT},
-		[TOK_HYPHON]		= {7, ASSOC_LEFT},
-		[TOK_ASTER]			= {8, ASSOC_LEFT},
-		[TOK_PERCENT]		= {8, ASSOC_LEFT},
-		[TOK_FORSLASH]		= {8, ASSOC_LEFT},
-		[TOK_AMPERSAND]		= {9, ASSOC_RIGHT},
-		[TOK_UPCARROT]		= {9, ASSOC_RIGHT},
-		[TOK_PERIOD]		= {10, ASSOC_LEFT}
+		[TOK_ASSIGN]		= {3, ASSOC_LEFT},
+		[TOK_LOGAND]		= {3, ASSOC_LEFT},
+		[TOK_LOGOR]			= {3, ASSOC_LEFT},
+		[TOK_EQ]			= {4, ASSOC_LEFT},
+		[TOK_NOTEQ]			= {4, ASSOC_LEFT},
+		[TOK_PERIOD]		= {5, ASSOC_LEFT},
+		[TOK_GT]			= {6, ASSOC_LEFT},
+		[TOK_GE]			= {6, ASSOC_LEFT},
+		[TOK_LT]			= {6, ASSOC_LEFT},
+		[TOK_LE]			= {6, ASSOC_LEFT},
+		[TOK_LINE]			= {7, ASSOC_LEFT},
+		[TOK_UPCARROT]		= {7, ASSOC_LEFT},
+		[TOK_SHL]			= {7, ASSOC_LEFT},
+		[TOK_SHR]			= {7, ASSOC_LEFT},
+		[TOK_PLUS]			= {8, ASSOC_LEFT},
+		[TOK_HYPHON]		= {8, ASSOC_LEFT},
+		[TOK_ASTER]			= {9, ASSOC_LEFT},
+		[TOK_PERCENT]		= {9, ASSOC_LEFT},
+		[TOK_FORSLASH]		= {9, ASSOC_LEFT},
+		[TOK_AMPERSAND]		= {10, ASSOC_RIGHT},
+		[TOK_UPCARROT]		= {10, ASSOC_RIGHT},
+		[TOK_PERIOD]		= {11, ASSOC_LEFT}
 	};
 	
 	/* implement shunting yard algorithm for expressions */
@@ -799,7 +815,11 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					push->pdatatype = local->datatype;
 					/* if it's a struct load its address */
 					if (local->datatype->type == TYPE_STRUCT) {
-						write(C, "ilea %d\n", local->offset);	
+						if ((is_lhs && local->datatype->ptr_level >= 1) || next_ampersand) {
+							write(C, "ilea %d\n", local->offset);
+						} else {
+							write(C, "ilload %d\n", local->offset);	
+						}
 					/* otherwise load its value */
 					} else {
 						/* next_ampersand cancels a dereference, so does is_lhs */
@@ -808,11 +828,21 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						} else {
 							switch (local->datatype->type) {
 								case TYPE_INT:
+									if (is_lhs) {
+										write(C, "ilea %d\n", local->offset);
+									} else {
+										write(C, "ilload %d\n", local->offset);
+									}
+									break;
 								case TYPE_STRING:
 									write(C, "ilload %d\n", local->offset);
 									break;
 								case TYPE_FLOAT:
-									write(C, "flload %d\n", local->offset);
+									if (is_lhs) {
+										write(C, "flea %d\n", local->offset);	
+									} else {
+										write(C, "flload %d\n", local->offset);
+									}
 									break;
 							}
 						}
@@ -864,6 +894,9 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					if (!(pop[1]->type == EXP_DATATYPE && pop[1]->pdatatype->type == TYPE_STRUCT)) {
 						compile_error(C, "the '.' operator can only be used on structs");
 					}
+					if (pop[1]->pdatatype->ptr_level > 0) {
+						compile_error(C, "attempt to use '.' operator on a pointer to a struct.");
+					}
 					int next_ampersand = (
 						node->next
 						&& node->next->type == EXP_OPERATOR
@@ -886,8 +919,42 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						}
 					}
 					exp_push(&stack, push);
+				} else if (node->poperator->type == TOK_AMPERSAND) {
+					pop[0] = exp_pop(&stack);
+					TreeDatatype* newtype = copy_datatype(pop[0]->pdatatype);
+					if (pop[0]->type == EXP_DATATYPE) {
+						newtype->ptr_level++;
+						pop[0]->pdatatype = newtype;
+					}
+					exp_push(&stack, pop[0]);
 				} else if (node->poperator->type == TOK_UPCARROT) {
-
+					pop[0] = exp_pop(&stack);
+					if (pop[0]->type == EXP_DATATYPE) {
+						TreeDatatype* newtype = copy_datatype(pop[0]->pdatatype);
+						if (newtype->ptr_level <= 0) {
+							compile_error(C, "attempt to dereference a non-pointer");
+						}
+						newtype->ptr_level--;
+						switch (newtype->type) {
+							case TYPE_INT:
+								write(C, "ider\n");
+								break;
+							case TYPE_FLOAT:
+								write(C, "fder\n");
+								break;
+							default:
+								/* if we're assigning to a single struct pointer (LHS),
+								 * DEREFERENCE TWICE!
+								 */
+								if (is_lhs && newtype->type == TYPE_STRUCT) {
+									write(C, "ider\n");	
+								}
+								write(C, "ider\n");
+								break;
+						}
+						pop[0]->pdatatype = newtype;
+					}
+					exp_push(&stack, pop[0]);
 				} else {
 					ExpNode* push;
 					TreeDatatype* a = raw_datatype(C, pop[0]);
@@ -986,11 +1053,6 @@ generate_function_decl(CompileState* C) {
 	write(C, "\n\n" DEF_FUNC "\n", C->focus->pfunc->identifier);
 	C->return_label = C->label_count++;
 	C->func = C->focus->pfunc;
-	
-	/* load arguments onto the stack */
-	for (int i = 0; i < C->focus->pfunc->nargs; i++) {
-		write(C, "iarg %d\n", i);	
-	}
 
 	/* reserve space for locals.... TODO currently locals
 	 * have a maximum size of 1, but structs will have
@@ -998,6 +1060,14 @@ generate_function_decl(CompileState* C) {
 	 * for them in the future
 	 */
 	write(C, "res %d\n", C->focus->pfunc->reserve_space);
+	
+	/* push the arguments and assign them to their proper offset */	
+	for (int i = 0; i < C->focus->pfunc->nargs; i++) {
+		write(C, "iarg %d\n", i);	
+		write(C, "ilsave %d\n", i);
+	}
+
+	init_declarations(C, C->focus->pfunc->block);
 
 	push_instruction(C, DEF_LABEL, C->return_label);
 	push_instruction(C, "iret\n");

@@ -1,75 +1,148 @@
 let __CFUNC__println "println"
-let __STR__0 "test %s"
-let __STR__1 "David"
-let __STR__2 "%s was born on %d/%d/%d!"
+let __STR__0 "%s %s, born in %s, a city with a population of %d."
+let __STR__1 "%s %s, born in %s, a city with a population of %d."
+let __STR__2 "Billy"
+let __STR__3 "Wilson"
+let __STR__4 "Boston"
+let __STR__5 "Jason"
+let __STR__6 "Robinson"
+let __STR__7 "Omaha"
 jmp __ENTRY_POINT__
 
 
-__FUNC__print_person:
+__FUNC__print_by_reference:
+res 1
 iarg 0
-res 0
- ; -----> println ( __STR__0 , p . name ) 
+ilsave 0
+ ; -----> println(__STR__0,p.first_name,
+ ; -----> 	p.last_name,p.birth_place.name
+ ; -----> 	,p.birth_place.population)
 ipush __STR__0
-ilea 0
+ilload 0
 icinc 0
 ider
-ccall __CFUNC__println, 2
+ilload 0
+icinc 8
+ider
+ilload 0
+icinc 16
+icinc 0
+ider
+ilload 0
+icinc 16
+icinc 8
+ider
+ccall __CFUNC__println, 5
 __LABEL__0:
 iret
 
 
 
-__FUNC__main:
-res 4
- ; -----> david . name =
-ilea 0
-icinc 0
- ; -----> __STR__1 
+__FUNC__print_by_pointer:
+res 1
+iarg 0
+ilsave 0
+ ; -----> println(__STR__1,(^p)
+ ; -----> 	.first_name,(^p).last_name
+ ; -----> 	,(^p).birth_place.name
+ ; -----> 	,(^p).birth_place.population
+ ; -----> 	)
 ipush __STR__1
-isave
- ; -----> david . birthday . day =
-ilea 0
-icinc 8
+ilload 0
+ider
 icinc 0
- ; -----> 24 
-ipush 24
-isave
- ; -----> david . birthday . month =
-ilea 0
+ider
+ilload 0
+ider
 icinc 8
-icinc 8
- ; -----> 1 
-ipush 1
-isave
- ; -----> david . birthday . year =
-ilea 0
-icinc 8
+ider
+ilload 0
+ider
 icinc 16
- ; -----> 2000 
-ipush 2000
-isave
- ; -----> println ( __STR__2 , david . name , david . birthday . day , david . birthday . month , david . birthday . year ) 
-ipush __STR__2
-ilea 0
 icinc 0
 ider
-ilea 0
-icinc 8
-icinc 0
+ilload 0
 ider
-ilea 0
-icinc 8
-icinc 8
-ider
-ilea 0
-icinc 8
 icinc 16
+icinc 8
 ider
 ccall __CFUNC__println, 5
- ; -----> print_person ( david ) 
-ilea 0
-call __FUNC__print_person, 1
 __LABEL__1:
+iret
+
+
+
+__FUNC__main:
+res 10
+ilea 1
+ilsave 0
+ilea 6
+ilsave 5
+ ; -----> billy.first_name=
+ilload 0
+icinc 0
+ ; -----> __STR__2
+ipush __STR__2
+isave
+ ; -----> billy.last_name=
+ilload 0
+icinc 8
+ ; -----> __STR__3
+ipush __STR__3
+isave
+ ; -----> billy.birth_place.name=
+ilload 0
+icinc 16
+icinc 0
+ ; -----> __STR__4
+ipush __STR__4
+isave
+ ; -----> billy.birth_place.population=
+ilload 0
+icinc 16
+icinc 8
+ ; -----> 656000
+ipush 656000
+isave
+ ; -----> jason.first_name=
+ilload 5
+icinc 0
+ ; -----> __STR__5
+ipush __STR__5
+isave
+ ; -----> jason.last_name=
+ilload 5
+icinc 8
+ ; -----> __STR__6
+ipush __STR__6
+isave
+ ; -----> jason.birth_place.name=
+ilload 5
+icinc 16
+icinc 0
+ ; -----> __STR__7
+ipush __STR__7
+isave
+ ; -----> jason.birth_place.population=
+ilload 5
+icinc 16
+icinc 8
+ ; -----> 434000
+ipush 434000
+isave
+ ; -----> print_by_reference(billy)
+ilload 0
+call __FUNC__print_by_reference, 1
+ ; -----> print_by_pointer(&billy)
+ilea 0
+call __FUNC__print_by_pointer, 1
+ ; -----> print_by_reference(jason)
+ilload 5
+call __FUNC__print_by_reference, 1
+ ; -----> print_by_pointer(&jason)
+ilea 5
+call __FUNC__print_by_pointer, 1
+__LABEL__2:
 iret
 
 __ENTRY_POINT__:
