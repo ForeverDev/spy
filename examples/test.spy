@@ -42,13 +42,17 @@ grow_older_by_pointer : (p : Person^, years : int) -> null {
 	(^p).age = (^p).age + years;
 }
 
-increment_integer : (x : int^) -> null {
-	^x = ^x + 1;
+increment_integer : (n : int^) -> null {
+	^n = ^n + 1;
+}
+
+testing : (c : City) -> null {
+	println("CITY: %s", c.name);
 }
 
 main : () -> null {
 	
-	println("\n\nSpyre example program: passing structs by reference and by pointer\n");
+	println("\n\nSpyre example program: passing data by reference and by pointer\n");
 
 	billy : Person;
 	some_integer : int;
@@ -77,5 +81,7 @@ main : () -> null {
 	println("some_integer is %d", some_integer);
 	increment_integer(&some_integer);
 	println("some_integer is now %d\n\n", some_integer);
+	
+	testing(billy.birth_place);	
 
 }

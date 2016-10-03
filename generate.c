@@ -196,6 +196,7 @@ raw_datatype(CompileState* C, ExpNode* node) {
 		case EXP_DATATYPE:
 			return node->pdatatype;
 	}
+	return NULL;
 }
 
 /* finds literals and adds them to the .spys file */
@@ -470,6 +471,17 @@ advance(CompileState* C) {
 	 * node is last in the current block.  If so, jump out of 
 	 * blocks until there is a node next in the current block
 	 */
+
+	/* if we're currently in a function but it doesn't have
+	 * a block, pop instructions for the return label
+	 */
+	if (C->ins_stack && C->focus->type == NODE_FUNCTION && !C->focus->pfunc->block) {
+		for (StringList* i = pop_instruction(C); i; i = i->next) {
+			write(C, i->str);
+			write(C, "\n");
+		}
+	}
+
 	int should_dive = 0;
 	switch (C->focus->type) {
 		case NODE_ROOT:
@@ -600,13 +612,11 @@ postfix_expression(CompileState* C, Token* expression) {
 		[TOK_LOGOR]			= {3, ASSOC_LEFT},
 		[TOK_EQ]			= {4, ASSOC_LEFT},
 		[TOK_NOTEQ]			= {4, ASSOC_LEFT},
-		[TOK_PERIOD]		= {5, ASSOC_LEFT},
 		[TOK_GT]			= {6, ASSOC_LEFT},
 		[TOK_GE]			= {6, ASSOC_LEFT},
 		[TOK_LT]			= {6, ASSOC_LEFT},
 		[TOK_LE]			= {6, ASSOC_LEFT},
 		[TOK_LINE]			= {7, ASSOC_LEFT},
-		[TOK_UPCARROT]		= {7, ASSOC_LEFT},
 		[TOK_SHL]			= {7, ASSOC_LEFT},
 		[TOK_SHR]			= {7, ASSOC_LEFT},
 		[TOK_PLUS]			= {8, ASSOC_LEFT},
@@ -1066,11 +1076,15 @@ generate_function_decl(CompileState* C) {
 		write(C, "iarg %d\n", i);	
 		write(C, "ilsave %d\n", i);
 	}
-
-	init_declarations(C, C->focus->pfunc->block);
-
-	push_instruction(C, DEF_LABEL, C->return_label);
-	push_instruction(C, "iret\n");
+	
+	if (C->focus->pfunc->block->children) {
+		init_declarations(C, C->focus->pfunc->block);
+		push_instruction(C, DEF_LABEL, C->return_label);
+		push_instruction(C, "iret\n");
+	} else {
+		write(C, DEF_LABEL, C->return_label);
+		write(C, "iret\n");
+	}
 }
 
 static void
