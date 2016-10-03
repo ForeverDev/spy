@@ -740,7 +740,6 @@ generate_tree(Token* tokens) {
 		}
 	}
 	finished:
-	print_block(P->root->proot->block, 0);
 
 	return P;
 }
