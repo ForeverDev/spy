@@ -1,16 +1,27 @@
-func int_func(x : int, y : int) -> null {
-	println("int function: %d, %d", x, y);
+println : cfunc(format : string, ...) -> null;
+sqrt : cfunc(n : float) -> float;
+
+Vector2 : struct {
+	x : float;
+	y : float;
+	magnitude : float;
+};
+
+init_vector : (v : Vector2, x : float, y : float) -> null {
+	v.x = x;
+	v.y = y;
+	v.magnitude = sqrt(x*x + y*y);
 }
 
-func float_func(x : float, y : float) -> null {
-	println("float function: %f, %f", x, y);
+print_vector : (v : Vector2) -> null {
+	println("VECTOR [%f, %f], (%f magnitude)", v.x, v.y, v.magnitude);
 }
 
-func main() -> null {
-	x : int;
+main : () -> null {
+	
+	vector : Vector2;
 
-	x = 10 * 13.5;
+	init_vector(vector, 3.0, 4.0);
+	print_vector(vector);
 
-	int_func(x, 7);	
-	float_func(5.5, 7);
 }

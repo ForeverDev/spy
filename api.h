@@ -29,5 +29,6 @@ static uint32_t	SpyL_exit(SpyState*);
 static uint32_t SpyL_max(SpyState*);
 static uint32_t SpyL_min(SpyState*);
 static uint32_t SpyL_map(SpyState*);
+static uint32_t SpyL_sqrt(SpyState*);
 
 #endif

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "api.h"
 
 void SpyL_initializeStandardLibrary(SpyState* S) {
@@ -21,7 +22,14 @@ void SpyL_initializeStandardLibrary(SpyState* S) {
 
 	Spy_pushC(S, "min", SpyL_min);
 	Spy_pushC(S, "max", SpyL_max);
+	Spy_pushC(S, "sqrt", SpyL_sqrt);
 }
+
+static uint32_t
+SpyL_sqrt(SpyState* S) {
+	Spy_pushFloat(S, sqrt(Spy_popFloat(S)));	
+	return 1;
+}	
 
 static uint32_t
 SpyL_println(SpyState* S) {

@@ -258,10 +258,6 @@ call __FUNC__increment_integer, 1
 ipush __STR__13
 ilload 5
 ccall __CFUNC__println, 2
- ; -----> testing(billy.birth_place)
-ilload 0
-icinc 16
-call __FUNC__testing, 1
 __LABEL__6:
 iret
 

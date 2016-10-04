@@ -69,6 +69,7 @@ const AssemblerInstruction instructions[0xFF] = {
 	{"FLSAVE",	0x3D, {_INT32}},
 	{"FTOI",	0x3E, {_INT32}},
 	{"ITOF",	0x3F, {_INT32}},
+	{"FDER",	0x40, {NO_OPERAND}}
 };
 
 void
@@ -350,7 +351,7 @@ Assembler_appendConstant(Assembler* A, const char* identifier, uint32_t index) {
 /* 0 = not valid, 1 = valid */
 static const AssemblerInstruction*
 Assembler_validateInstruction(Assembler* A, const char* instruction) {
-	for (int i = 0; i <= 0x3F; i++) {
+	for (int i = 0; i <= 0x40; i++) {
 		if (!strcmp_lower(instructions[i].name, instruction)) {
 			return &instructions[i];	
 		};
