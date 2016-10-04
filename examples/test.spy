@@ -86,6 +86,4 @@ main : () -> null {
 	increment_integer(&some_integer);
 	println("some_integer is now %d\n\n", some_integer);
 	
-	testing(billy.birth_place);	
-
 }
