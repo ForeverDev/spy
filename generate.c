@@ -246,6 +246,12 @@ copy_datatype(TreeDatatype* type) {
 
 static int
 identical_types(TreeDatatype* a, TreeDatatype* b) {
+	/* pointer arithmetic is valid */
+	if (b->ptr_level > 0 && a->type == TYPE_INT) {
+		if (b->ptr_level > 0) {
+			return 1;
+		}
+	}
 	if (a->type != b->type) {
 		return 0;
 	}
@@ -735,6 +741,8 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 	ExpStack* stack = NULL;
 	ExpNode* pop[2];
 
+	print_expression(expression);
+
 	for (ExpNode* node = expression; node; node = node->next) {
 		switch (node->type) {
 			case EXP_LITERAL: {
@@ -838,7 +846,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						} else {
 							switch (local->datatype->type) {
 								case TYPE_INT:
-									if (is_lhs) {
+									if (is_lhs && local->datatype->ptr_level <= 0) {
 										write(C, "ilea %d\n", local->offset);
 									} else {
 										write(C, "ilload %d\n", local->offset);
@@ -944,6 +952,9 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						if (newtype->ptr_level <= 0) {
 							compile_error(C, "attempt to dereference a non-pointer");
 						}
+						if (is_lhs && newtype->ptr_level > 0) {
+							/* HERE */	
+						}
 						newtype->ptr_level--;
 						switch (newtype->type) {
 							case TYPE_INT:
@@ -983,7 +994,12 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					);	
 					push = malloc(sizeof(ExpNode));
 					push->type = EXP_DATATYPE;
-					push->pdatatype = a;
+					/* b if arithmetic pointer */
+					if (b->ptr_level > 0 && a->type == TYPE_INT) {
+						push->pdatatype = b;
+					} else {
+						push->pdatatype = a;
+					}
 					push->next = NULL;
 					/* A and B are identical, push back */
 					exp_push(&stack, push);

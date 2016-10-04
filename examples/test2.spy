@@ -1,5 +1,6 @@
 println : cfunc(format : string, ...) -> null;
 sqrt : cfunc(n : float) -> float;
+malloc : cfunc(bytes : int) -> int^;
 
 Vector2 : struct {
 	x : float;
@@ -17,11 +18,17 @@ print_vector : (v : Vector2) -> null {
 	println("VECTOR [%f, %f], (%f magnitude)", v.x, v.y, v.magnitude);
 }
 
+add_vector : (v : Vector2, a : Vector2, b : Vector2) -> null {
+	init_vector(v, a.x + b.x, a.y + b.y);
+}
+
 main : () -> null {
-	
-	vector : Vector2;
 
-	init_vector(vector, 3.0, 4.0);
-	print_vector(vector);
+	a : int^;
+	a = malloc(10);
 
+	^(a + 6) = 20;
+
+	println("%d", ^(a + 6));
+		
 }
