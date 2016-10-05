@@ -1,6 +1,8 @@
+Vector2 : struct;
+
 println : cfunc(format : string, ...) -> null;
 sqrt : cfunc(n : float) -> float;
-malloc : cfunc(bytes : int) -> int^;
+malloc : cfunc(bytes : int) -> Vector2^;
 
 Vector2 : struct {
 	x : float;
@@ -22,13 +24,21 @@ add_vector : (v : Vector2, a : Vector2, b : Vector2) -> null {
 	init_vector(v, a.x + b.x, a.y + b.y);
 }
 
-main : () -> null {
-
-	a : int^;
-	a = malloc(10);
-
-	^(a + 6) = 20;
-
-	println("%d", ^(a + 6));
-		
+factorial : (n : int) -> int {
+	if n <= 1 {
+		return 1;
+	}
+	return n * factorial(n - 1);
 }
+
+main : () -> null {
+	
+	v : Vector2^;
+
+	v = malloc(24);
+	(^v).x = 50.0;
+
+	println("%f", (^v).x);
+
+}
+

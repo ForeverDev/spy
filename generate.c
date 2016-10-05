@@ -381,6 +381,7 @@ static void
 print_expression(ExpNode* expression) {
 	char* out;
 	for (ExpNode* i = expression; i; i = i->next) {
+		out = NULL;
 		switch (i->type) {
 			case EXP_NOTYPE:
 			case EXP_FUNC_CALL:
@@ -398,7 +399,11 @@ print_expression(ExpNode* expression) {
 			case EXP_DATATYPE:
 				break;
 		}
-		printf("%s ", out);
+		if (out) {
+			printf("%s ", out);
+		} else {
+			printf("?? ");
+		}
 	}
 	printf("\n");
 }
@@ -442,7 +447,10 @@ init_declarations(CompileState* C, TreeBlock* block) {
 	if (!block) return;
 	for (TreeDecl* i = block->locals; i; i = i->next) {
 		/* if we find a struct declaration... */
-		if (i->datatype->type == TYPE_STRUCT && i->datatype->ptr_level == 0) {
+		int a, b;
+		a = i->datatype->type == TYPE_STRUCT;
+		b = i->datatype->ptr_level > 0;
+		if ((a && !b) || (b && !a)) {
 			/* the memory on the stack is one ahead of the pointer */
 			write(C, "ilea %d\n", i->offset + 1);
 			write(C, "ilsave %d\n", i->offset);
@@ -741,9 +749,15 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 	ExpStack* stack = NULL;
 	ExpNode* pop[2];
 
-	print_expression(expression);
+	int last_der = 0;
+	for (ExpNode* node = expression; node; node = node->next) {
+		if (!node->next) {
+			last_der = node->type == EXP_OPERATOR && node->poperator->type == TOK_UPCARROT;
+		}
+	}
 
 	for (ExpNode* node = expression; node; node = node->next) {
+		int is_2last = node->next && !node->next->next;
 		switch (node->type) {
 			case EXP_LITERAL: {
 				switch (node->pliteral->datatype->type) {
@@ -841,12 +855,12 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					/* otherwise load its value */
 					} else {
 						/* next_ampersand cancels a dereference, so does is_lhs */
-						if ((is_lhs || next_ampersand) && local->datatype->ptr_level <= 0) {
+						if (next_ampersand && local->datatype->ptr_level <= 0) {
 							write(C, "ilea %d\n", local->offset);
 						} else {
 							switch (local->datatype->type) {
 								case TYPE_INT:
-									if (is_lhs && local->datatype->ptr_level <= 0) {
+									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
 										write(C, "ilea %d\n", local->offset);
 									} else {
 										write(C, "ilload %d\n", local->offset);
@@ -856,7 +870,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 									write(C, "ilload %d\n", local->offset);
 									break;
 								case TYPE_FLOAT:
-									if (is_lhs) {
+									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
 										write(C, "flea %d\n", local->offset);	
 									} else {
 										write(C, "flload %d\n", local->offset);
@@ -952,10 +966,12 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						if (newtype->ptr_level <= 0) {
 							compile_error(C, "attempt to dereference a non-pointer");
 						}
-						if (is_lhs && newtype->ptr_level > 0) {
-							/* HERE */	
-						}
 						newtype->ptr_level--;
+						if (is_lhs && !node->next) {
+							pop[0]->pdatatype = newtype;
+							exp_push(&stack, pop[0]);;
+							break;
+						}
 						switch (newtype->type) {
 							case TYPE_INT:
 								write(C, "ider\n");
@@ -995,10 +1011,23 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					push = malloc(sizeof(ExpNode));
 					push->type = EXP_DATATYPE;
 					/* b if arithmetic pointer */
+					int mul_size = 0;
 					if (b->ptr_level > 0 && a->type == TYPE_INT) {
 						push->pdatatype = b;
+						if (b->type == TYPE_STRUCT) {
+							if (b->ptr_level > 0) {
+								mul_size = 8;
+							} else {
+								mul_size = 8 * b->pstruct->size;
+							}
+						} else {
+							mul_size = 8;
+						}
 					} else {
 						push->pdatatype = a;
+					}
+					if (mul_size && (node->poperator->type == TOK_PLUS || node->poperator->type == TOK_HYPHON)) {
+						write(C, "ipush %d\nimul ; ----> pointer arithmetic\n", mul_size);
 					}
 					push->next = NULL;
 					/* A and B are identical, push back */
@@ -1125,8 +1154,12 @@ generate_assignment(CompileState* C) {
 			tostring_datatype(lhs->pdatatype)
 		);
 	}
-
-	write(C, "isave\n");
+	
+	if (lhs->pdatatype->type == TYPE_FLOAT) {
+		write(C, "fsave\n");
+	} else {
+		write(C, "isave\n");
+	}
 }
 
 static void

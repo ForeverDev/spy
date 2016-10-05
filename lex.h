@@ -22,6 +22,7 @@ typedef struct Token Token;
 #define TOK_STRUCT		16
 #define TOK_FLOAT		17
 #define TOK_CFUNC		18
+#define TOK_CAST		19
 #define TOK_SPACE		32
 #define TOK_EXCL		33
 #define TOK_DQUOTE		34

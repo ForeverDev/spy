@@ -6,6 +6,14 @@
 #include "parse.h"
 #include "generate.h"
 
+int correct_suffix(const char* str) {
+	size_t len = strlen(str);
+	if (len <= 4) {
+		return 0;
+	}
+	return !strncmp(&str[len - 4], ".spy", 4);
+}
+
 int main(int argc, char** argv) {
 
 	if (argc <= 1) return printf("expected file name\n");
@@ -26,6 +34,10 @@ int main(int argc, char** argv) {
 			generate_bytecode(tree, "examples/test.spys"); 
 		}
 	} else {
+		if (!correct_suffix(argv[1])) {
+			printf("expected Spyre source file\n");
+			exit(1);
+		}	
 		unsigned int len = strlen(argv[1]);
 		char* asm_file = calloc(1, len + 2);
 		char* binary_file = calloc(1, len + 2);
