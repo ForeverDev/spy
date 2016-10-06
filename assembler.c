@@ -47,7 +47,7 @@ const AssemblerInstruction instructions[0xFF] = {
 	{"ILOAD",	0x27, {NO_OPERAND}},
 	{"ISAVE",	0x28, {NO_OPERAND}},
 	{"RES",		0x29, {_INT32}},
-	{"ILEA",	0x2A, {_INT32}},
+	{"LEA",		0x2A, {_INT32}},
 	{"IDER",	0x2B, {NO_OPERAND}},
 	{"ICINC",	0x2C, {_INT64}},
 	{"CDER",	0x2D, {NO_OPERAND}},

@@ -236,7 +236,7 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 
 	/* general purpose vars for interpretation */
 	int64_t a, c;
-	double b;
+	double b, d;
 	uint8_t *pa, *pb;
 
 	/* IP saver */
@@ -254,7 +254,7 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 		&&fdiv, &&fgt, &&fge, &&flt, 
 		&&fle, &&fcmp, &&fret, &&ilload,
 		&&ilsave, &&iarg, &&iload, &&isave,
-		&&res, &&ilea, &&ider, &&icinc, &&cder,
+		&&res, &&lea, &&ider, &&icinc, &&cder,
 		&&lor, &&land, &&padd, &&psub, &&log,
 		&&vret, &&dbon, &&dboff, &&dbds, &&cjnz,
 		&&cjz, &&cjmp, &&ilnsave, &&ilnload,
@@ -519,7 +519,7 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 	S.sp += Spy_readInt32(&S) * 8;
 	goto dispatch;
 
-	ilea:
+	lea:
 	Spy_pushPointer(&S, (void *)(&S.bp[Spy_readInt32(&S)*8 + 8] - S.memory));
 	goto dispatch;
 
@@ -640,8 +640,8 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 	goto dispatch;
 
 	fsave:
-	a = Spy_popFloat(&S); /* pop value */
-	Spy_saveFloat(&S, &S.memory[Spy_popInt(&S)], a);
+	b = Spy_popFloat(&S); /* pop value */
+	Spy_saveFloat(&S, &S.memory[Spy_popInt(&S)], b);
 	goto dispatch;
 
 	done:

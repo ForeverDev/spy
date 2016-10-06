@@ -452,7 +452,7 @@ init_declarations(CompileState* C, TreeBlock* block) {
 		b = i->datatype->ptr_level > 0;
 		if ((a && !b) || (b && !a)) {
 			/* the memory on the stack is one ahead of the pointer */
-			write(C, "ilea %d\n", i->offset + 1);
+			write(C, "lea %d\n", i->offset + 1);
 			write(C, "ilsave %d\n", i->offset);
 		}
 	}
@@ -797,7 +797,11 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				int at_arg = 1;
 				TreeDecl* expected_type = func->arguments;
 				while (expected_type && ret) {
-					if (!identical_types(expected_type->datatype, ret->pdatatype)) {
+					if (expected_type->datatype->type == TYPE_INT && ret->pdatatype->type == TYPE_FLOAT) {
+						write(C, "ftoi %d\n", n_call_args - at_arg);
+					} else if (expected_type->datatype->type == TYPE_FLOAT && ret->pdatatype->type == TYPE_INT) {
+						write(C, "itof %d\n", n_call_args - at_arg);
+					} else if (!identical_types(expected_type->datatype, ret->pdatatype)) {
 						compile_error(C,
 							"passing incorrect type argument (#%d) to function '%s', expected (%s), got (%s)",
 							at_arg,
@@ -844,11 +848,11 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				push->type = EXP_DATATYPE;
 				/* if a local is found and the next thing isn't a period, it's a variable */
 				if (local && !next_period) {
-					push->pdatatype = local->datatype;
+					push->pdatatype = copy_datatype(local->datatype);
 					/* if it's a struct load its address */
 					if (local->datatype->type == TYPE_STRUCT) {
 						if ((is_lhs && local->datatype->ptr_level >= 1) || next_ampersand) {
-							write(C, "ilea %d\n", local->offset);
+							write(C, "lea %d\n", local->offset);
 						} else {
 							write(C, "ilload %d\n", local->offset);	
 						}
@@ -856,12 +860,12 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					} else {
 						/* next_ampersand cancels a dereference, so does is_lhs */
 						if (next_ampersand && local->datatype->ptr_level <= 0) {
-							write(C, "ilea %d\n", local->offset);
+							write(C, "lea %d\n", local->offset);
 						} else {
 							switch (local->datatype->type) {
 								case TYPE_INT:
 									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
-										write(C, "ilea %d\n", local->offset);
+										write(C, "lea %d\n", local->offset);
 									} else {
 										write(C, "ilload %d\n", local->offset);
 									}
@@ -871,7 +875,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 									break;
 								case TYPE_FLOAT:
 									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
-										write(C, "flea %d\n", local->offset);	
+										write(C, "lea %d\n", local->offset);	
 									} else {
 										write(C, "flload %d\n", local->offset);
 									}
@@ -996,7 +1000,13 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					ExpNode* push;
 					TreeDatatype* a = raw_datatype(C, pop[0]);
 					TreeDatatype* b = raw_datatype(C, pop[1]);
-					if (!identical_types(a, b)) {
+					if (a->type == TYPE_INT && b->type == TYPE_FLOAT) {
+						a->type = TYPE_FLOAT;
+						write(C, "itof 0\n");
+					} else if (a->type == TYPE_FLOAT && b->type == TYPE_INT) {
+						b->type = TYPE_FLOAT;
+						write(C, "itof 1\n");
+					} if (!identical_types(a, b)) {
 						compile_error(C,
 							"attempt to perform arithmetic on non-matching types '%s' and '%s'",
 							tostring_datatype(a),
@@ -1031,7 +1041,6 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					}
 					push->next = NULL;
 					/* A and B are identical, push back */
-					exp_push(&stack, push);
 					switch (node->poperator->type) {
 						case TOK_PLUS:
 							write(C, "%cadd\n", prefix);
@@ -1057,7 +1066,16 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						case TOK_LE:
 							write(C, "%cle\n", prefix);
 							break;
+						case TOK_LOGAND:
+							push->pdatatype->type = TYPE_INT;
+							write(C, "land\n");
+							break;
+						case TOK_LOGOR:
+							push->pdatatype->type = TYPE_INT;
+							write(C, "lor\n");
+							break;
 					}
+					exp_push(&stack, push);
 				}
 			}
 		}
@@ -1146,10 +1164,15 @@ generate_assignment(CompileState* C) {
 	if (!(lhs->type == EXP_DATATYPE && rhs->type == EXP_DATATYPE)) {
 		compile_error(C, "didn't pop LHS and RHS as datatypes...");
 	}
-
-	if (!identical_types(lhs->pdatatype, rhs->pdatatype)) {
+	
+	/* implicit cast if needed */
+	if (lhs->pdatatype->type == TYPE_FLOAT && rhs->pdatatype->type == TYPE_INT) {
+		write(C, "itof 0\n");
+	} else if (lhs->pdatatype->type == TYPE_INT && rhs->pdatatype->type == TYPE_FLOAT) {
+		write(C, "ftoi 0\n");	
+	} else if (!identical_types(lhs->pdatatype, rhs->pdatatype)) {
 		compile_error(C,
-			"attempt to assign incompatible types, '%s' to '%s'",
+			"attempt to assign '%s' to '%s'",
 			tostring_datatype(rhs->pdatatype),
 			tostring_datatype(lhs->pdatatype)
 		);
@@ -1176,7 +1199,11 @@ generate_return(CompileState* C) {
 	token_line(C, C->focus->pret->statement);
 	write(C, "\n");
 	ExpNode* ret = generate_expression(C, postfix_expression(C, C->focus->pret->statement), 0);
-	if (!identical_types(ret->pdatatype, C->func->return_type)) {
+	if (C->func->return_type->type == TYPE_INT && ret->pdatatype->type == TYPE_FLOAT) {
+		write(C, "ftoi 0\n");
+	} else if (C->func->return_type->type == TYPE_FLOAT && ret->pdatatype->type == TYPE_INT) {
+		write(C, "itof 0\n");
+	} else if (!identical_types(ret->pdatatype, C->func->return_type)) {
 		compile_error(C,
 			"attempt to return expression of type (%s) from function (%s),"
 			"expected expression of type (%s)",

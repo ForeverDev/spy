@@ -58,11 +58,18 @@ parse_error(ParseState* P, const char* format, ...) {
 
 static int
 get_variable_size(ParseState* P, TreeDecl* variable) {	
+	/*
+	if (variable->datatype->type == TYPE_CHAR && variable->datatype->ptr_level == 0) {
+		return 1;
+	}
+	*/
 	if (variable->datatype->type != TYPE_STRUCT) {
 		return 1;
+		//return 8;
 	} 
 	if (variable->datatype->ptr_level > 0) {
 		return 1;
+		//return 8;
 	}
 	return variable->datatype->pstruct->size;
 }
@@ -73,7 +80,8 @@ check_datatype(ParseState* P, const char* type_name) {
 		!strcmp(type_name, "int") ||
 		!strcmp(type_name, "float") ||
 		!strcmp(type_name, "string") ||
-		!strcmp(type_name, "null")
+		!strcmp(type_name, "char") ||
+		!strcmp(type_name, "null") 
 	) {
 		return 1;
 	}
@@ -686,6 +694,21 @@ generate_tree(Token* tokens) {
 	P->defined_types = NULL;
 	
 	while (P->token) {
+		if (P->token->next && P->token->type == TOK_FORSLASH && P->token->next->type == TOK_ASTER) {
+			unsigned int start_line = P->token->line;
+			P->token = P->token->next->next;
+			while (1) {
+				if (!P->token || !P->token->next) {
+					parse_error(P, "expected end to comment on line %d", start_line);
+				}
+				if (P->token->type == TOK_ASTER && P->token->next->type == TOK_FORSLASH) {
+					P->token = P->token->next->next;
+					break;
+				}
+				P->token = P->token->next;
+			}
+			continue;
+		}
 		if (P->token->next && P->token->next->next) {
 			/* special case, check to see if it's a struct declaration */
 			if (

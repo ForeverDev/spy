@@ -72,6 +72,17 @@ generate_tokens(const char* filename) {
 			contents++;
 			line++;
 			continue;
+		} else if (*contents && *(contents + 1) && *contents == '/' && *(contents + 1) == '*') {
+			contents += 2;
+			while (*contents && *(contents + 1)) {
+				if (*contents == '*' && *(contents + 1) == '/') {
+					contents += 2;
+					break;
+				} else if (*contents == '\n') {
+					line++;
+				}
+				contents++;
+			}
 		} else if (*contents == '\t' || *contents == 32 || *contents == 13) {
 			contents++;
 			continue;
