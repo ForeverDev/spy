@@ -59,7 +59,7 @@ parse_error(ParseState* P, const char* format, ...) {
 static int
 get_variable_size(ParseState* P, TreeDecl* variable) {	
 	/*
-	if (variable->datatype->type == TYPE_CHAR && variable->datatype->ptr_level == 0) {
+	if (variable->datatype->type == TYPE_BYTE && variable->datatype->ptr_level == 0) {
 		return 1;
 	}
 	*/
@@ -80,7 +80,7 @@ check_datatype(ParseState* P, const char* type_name) {
 		!strcmp(type_name, "int") ||
 		!strcmp(type_name, "float") ||
 		!strcmp(type_name, "string") ||
-		!strcmp(type_name, "char") ||
+		!strcmp(type_name, "byte") ||
 		!strcmp(type_name, "null") 
 	) {
 		return 1;
@@ -273,7 +273,7 @@ tostring_datatype(TreeDatatype* type) {
 	strcat(str, (
 		type->type == TYPE_INT ? "int" :
 		type->type == TYPE_FLOAT ? "float" :
-		type->type == TYPE_CHAR ? "char" :
+		type->type == TYPE_BYTE ? "byte" :
 		type->type == TYPE_STRING ? "string" :
 		type->type == TYPE_NULL ? "null" :
 		type->pstruct->type_name
@@ -352,7 +352,7 @@ parse_datatype(ParseState* P) {
 		!strcmp(P->token->word, "int") ? TYPE_INT :
 		!strcmp(P->token->word, "float") ? TYPE_FLOAT :
 		!strcmp(P->token->word, "string") ? TYPE_STRING :
-		!strcmp(P->token->word, "char") ? TYPE_CHAR : 
+		!strcmp(P->token->word, "byte") ? TYPE_BYTE : 
 		!strcmp(P->token->word, "null") ? TYPE_NULL : TYPE_STRUCT
 	);
 	data->pstruct = NULL;

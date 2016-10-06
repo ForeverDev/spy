@@ -9,9 +9,12 @@ clean:
 
 spy.exe: build $(OBJ)
 	$(CC) $(CF) $(OBJ) -o spy.exe
+ifeq ($(OS),Windows_NT)
 	cp spy.exe C:\MinGW\bin\spy.exe
+else
+	cp spy.exe /usr/local/bin/spy
+endif
 	rm spy.exe
-	rm -Rf build
 
 build:
 	mkdir build

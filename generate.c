@@ -385,6 +385,8 @@ print_expression(ExpNode* expression) {
 		switch (i->type) {
 			case EXP_NOTYPE:
 			case EXP_FUNC_CALL:
+				out = i->pcall->func->identifier;
+				break;
 			case EXP_ARRAY_INDEX:
 				break;
 			case EXP_OPERATOR:
@@ -400,9 +402,12 @@ print_expression(ExpNode* expression) {
 				break;
 		}
 		if (out) {
-			printf("%s ", out);
+			if (i->type == EXP_FUNC_CALL) {
+				printf("%s() ", out);
+			} else {
+				printf("%s ", out);
+			}
 		} else {
-			printf("?? ");
 		}
 	}
 	printf("\n");
@@ -585,7 +590,7 @@ postfix_function_call(CompileState* C) {
 	 * so that conversion can continue properly
 	 */
 	Token* argument = C->token;
-	
+
 	unsigned int counter = 1;
 	while (counter > 0) {
 		switch (C->token->type) {
@@ -606,9 +611,10 @@ postfix_function_call(CompileState* C) {
 		C->token->next = NULL;
 		C->token = save;
 	}
+
 	
 	node->pcall->argument = postfix_expression(C, argument);
-	
+
 	return node;	
 }
 
@@ -649,7 +655,9 @@ postfix_expression(CompileState* C, Token* expression) {
 	ExpNode* node;
 	for (C->token = expression; C->token; C->token = C->token->next) {
 		if (C->token->next && C->token->type == TOK_IDENTIFIER && C->token->next->type == TOK_OPENPAR) {
+			printf(" WAS ON %s ", C->token->word);
 			node = postfix_function_call(C);
+			printf("NOW ON %s\n", C->token ? C->token->word : "?");
 			exp_push(&postfix, node);
 			if (!C->token) {
 				break;
@@ -771,8 +779,17 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				}
 				ExpNode* push = malloc(sizeof(ExpNode));
 				push->type = EXP_DATATYPE;
-				push->pdatatype = node->pliteral->datatype;
 				push->next = NULL;
+				/* push a char pointer if it's a string */
+				if (node->pliteral->datatype->type == TYPE_STRING) {
+					push->pdatatype = malloc(sizeof(TreeDatatype));
+					push->pdatatype->type = TYPE_BYTE;
+					push->pdatatype->ptr_level = 1;
+					push->pdatatype->modifier = 0;
+					push->pdatatype->pstruct = NULL;		
+				} else {
+					push->pdatatype = node->pliteral->datatype;
+				}
 				exp_push(&stack, push);
 				break;
 			}
@@ -870,8 +887,12 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 										write(C, "ilload %d\n", local->offset);
 									}
 									break;
-								case TYPE_STRING:
-									write(C, "ilload %d\n", local->offset);
+								case TYPE_BYTE:
+									if (is_lhs) {
+										write(C, "lea %d\n", local->offset);
+									} else {
+										write(C, "ilload %d\n", local->offset);
+									}
 									break;
 								case TYPE_FLOAT:
 									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
@@ -977,6 +998,9 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 							break;
 						}
 						switch (newtype->type) {
+							case TYPE_BYTE:
+								write(C, "cder\n");
+								break;
 							case TYPE_INT:
 								write(C, "ider\n");
 								break;
@@ -1016,6 +1040,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					const char prefix = (
 						a->type == TYPE_INT ? 'i' :
 						a->type == TYPE_STRING ? 'i' : 
+						a->type == TYPE_BYTE ? 'i' : 
 						a->type == TYPE_STRUCT ? 'i' : 'f'
 					);	
 					push = malloc(sizeof(ExpNode));
@@ -1036,7 +1061,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					} else {
 						push->pdatatype = a;
 					}
-					if (mul_size && (node->poperator->type == TOK_PLUS || node->poperator->type == TOK_HYPHON)) {
+					if (b->type != TYPE_BYTE && mul_size && (node->poperator->type == TOK_PLUS || node->poperator->type == TOK_HYPHON)) {
 						write(C, "ipush %d\nimul ; ----> pointer arithmetic\n", mul_size);
 					}
 					push->next = NULL;
