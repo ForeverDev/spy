@@ -520,6 +520,18 @@ advance(CompileState* C) {
 			NULL
 		);
 		return 1;
+	} else {
+		switch (C->focus->type) {
+			case NODE_ROOT:
+			case NODE_IF:
+			case NODE_WHILE:
+			case NODE_FUNCTION:
+				for (StringList* i = pop_instruction(C); i; i = i->next) {
+					write(C, i->str);
+					write(C, "\n");
+				}
+				break;
+		}
 	}
 	/* if reached, attempt to move to the next node in the current block */
 	if (C->focus->next) {
@@ -593,27 +605,31 @@ postfix_function_call(CompileState* C) {
 
 	unsigned int counter = 1;
 	while (counter > 0) {
+		int found = 0;
 		switch (C->token->type) {
 			case TOK_OPENPAR:
+				found = 1;
 				counter++;
 				break;
 			case TOK_CLOSEPAR:
+				found = 1;
 				counter--;
 				break;
 		}
+		if (found && counter <= 0) break;
 		C->token = C->token->next;
 	}
-	
-	/* if necessary, detach */
-	if (C->token && C->token->next) {
-		Token* save = C->token->next;
-		C->token->next->prev = NULL;
-		C->token->next = NULL;
-		C->token = save;
-	}
 
+	Token* save = C->token;
+	if (C->token) {
+		C->token->prev->next = NULL;
+	}
 	
 	node->pcall->argument = postfix_expression(C, argument);
+	if (save) {
+		C->token = save;
+		save->prev->next = save;
+	}
 
 	return node;	
 }
@@ -648,20 +664,15 @@ postfix_expression(CompileState* C, Token* expression) {
 		[TOK_UPCARROT]		= {10, ASSOC_RIGHT},
 		[TOK_PERIOD]		= {11, ASSOC_LEFT}
 	};
-	
+
 	/* implement shunting yard algorithm for expressions */
 	ExpStack* postfix = NULL;	
 	ExpStack* operators = NULL;
 	ExpNode* node;
 	for (C->token = expression; C->token; C->token = C->token->next) {
 		if (C->token->next && C->token->type == TOK_IDENTIFIER && C->token->next->type == TOK_OPENPAR) {
-			printf(" WAS ON %s ", C->token->word);
 			node = postfix_function_call(C);
-			printf("NOW ON %s\n", C->token ? C->token->word : "?");
 			exp_push(&postfix, node);
-			if (!C->token) {
-				break;
-			}
 		} else if (C->token->type == TOK_OPENPAR) {
 			node = malloc(sizeof(ExpNode));
 			node->type = EXP_OPERATOR;
@@ -729,6 +740,7 @@ postfix_expression(CompileState* C, Token* expression) {
 			}
 			exp_pop(&operators);
 		}
+		if (!C->token) break;
 	}
 
 	while (operators) {
@@ -801,7 +813,6 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				for (ExpNode* i = ret; i; i = i->next) {
 					n_call_args++;
 				}
-				
 				if (n_call_args != func->nargs && !func->is_vararg) {
 					compile_error(C,
 						"incorrect number of arguments passed to function '%s', expected %d, got %d",
@@ -1091,6 +1102,9 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						case TOK_LE:
 							write(C, "%cle\n", prefix);
 							break;
+						case TOK_EQ:
+							write(C, "%ccmp\n", prefix);
+							break;
 						case TOK_LOGAND:
 							push->pdatatype->type = TYPE_INT;
 							write(C, "land\n");
@@ -1116,29 +1130,55 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 
 static void
 generate_if(CompileState* C) {	
+	if (C->focus->pif->if_type == IF_REG) {
+		C->if_label = C->label_count++;
+	}
 	unsigned int label = C->label_count++;
 	comment(C, "");
-	write(C, "if ( ");
-	token_line(C, C->focus->pass->lhs);
-	write(C, ") {\n");
-	generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0);
-	write(C, JZ_LABEL "\n", label);
-	push_instruction(C, DEF_LABEL, label);
+	switch (C->focus->pif->if_type) {
+		case IF_REG:
+			write(C, "if ( ");
+			token_line(C, C->focus->pass->lhs);
+			write(C, ") {\n");
+			break;
+		case IF_ELIF:
+			write(C, "elif ( ");
+			token_line(C, C->focus->pass->lhs);
+			write(C, ") {\n");
+			break;
+		case IF_ELSE:
+			write(C, "else {\n");
+			break;
+	}
+	if (C->focus->pif->if_type != IF_ELSE && C->focus->next && C->focus->next->type == NODE_IF) {
+		generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0);
+		write(C, JZ_LABEL "\n", label);
+		push_instruction(C, JMP_LABEL, C->if_label);
+		push_instruction(C, DEF_LABEL, label);
+	} else if (C->focus->pif->if_type == IF_REG) {
+		generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0);
+		write(C, JZ_LABEL "\n", label);
+		push_instruction(C, DEF_LABEL, label);
+	} else {
+		push_instruction(C, DEF_LABEL, C->if_label);
+	}
 }
 
 static void
 generate_while(CompileState* C) {
 	unsigned int top_label = C->label_count++;
-	unsigned int done_label = C->label_count++;
+	unsigned int bottom_label = C->label_count++;
+	C->top_label = top_label;
+	C->bottom_label = bottom_label;
 	comment(C, "");
 	write(C, "while ( ");
 	token_line(C, C->focus->pass->lhs);
 	write(C, ") {\n");
 	write(C, DEF_LABEL "\n", top_label);
 	generate_expression(C, postfix_expression(C, C->focus->pwhile->condition), 0);
-	write(C, JZ_LABEL "\n", done_label);
+	write(C, JZ_LABEL "\n", bottom_label);
 	push_instruction(C, JMP_LABEL, top_label);
-	push_instruction(C, DEF_LABEL, done_label);
+	push_instruction(C, DEF_LABEL, bottom_label);
 }
 
 static void
@@ -1253,6 +1293,9 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 	C->label_count = 0;
 	C->literal_count = 0;
 	C->return_label = 0;
+	C->if_label = 0;
+	C->top_label = 0;
+	C->bottom_label = 0;
 	C->token = NULL;
 	if (!C->fout) {
 		printf("couldn't open output file '%s' for writing\n", fout_name);
@@ -1302,6 +1345,12 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 				break;
 			case NODE_RETURN:
 				generate_return(C);
+				break;
+			case NODE_CONTINUE:
+				write(C, JMP_LABEL "\n", C->top_label);
+				break;
+			case NODE_BREAK:
+				write(C, JMP_LABEL "\n", C->bottom_label);
 				break;
 		}
 		advance_success = advance(C);

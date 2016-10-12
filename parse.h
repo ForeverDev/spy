@@ -22,6 +22,8 @@ typedef struct TreeDecl TreeDecl;
 typedef struct TreeDatatype TreeDatatype;
 typedef struct TreeStruct TreeStruct;
 typedef struct TreeReturn TreeReturn;
+typedef struct TreeContinue TreeContinue;
+typedef struct TreeBreak TreeBreak;
 typedef struct ParseState ParseState;
 typedef enum NodeType NodeType;
 typedef enum TreeType TreeType;
@@ -34,7 +36,9 @@ enum NodeType {
 	NODE_ASSIGN,
 	NODE_STATEMENT,
 	NODE_RETURN,
-	NODE_ROOT
+	NODE_ROOT,
+	NODE_CONTINUE,
+	NODE_BREAK
 };
 
 enum TreeType {
@@ -90,6 +94,11 @@ struct TreeReturn {
 struct TreeIf {
 	Token* condition;
 	TreeBlock* block;
+	enum IfType {
+		IF_REG,
+		IF_ELIF,
+		IF_ELSE
+	} if_type;
 };
 
 struct TreeWhile {
@@ -107,6 +116,14 @@ struct TreeFunction {
 	TreeDatatype* return_type;
 	TreeDecl* arguments;
 	TreeBlock* block;
+};
+
+struct TreeContinue {
+	
+};
+
+struct TreeBreak {
+
 };
 
 struct TreeBlock {
@@ -133,6 +150,8 @@ struct TreeNode {
 		TreeAssign* pass;
 		TreeReturn* pret;
 		TreeRoot* proot;
+		TreeContinue* pcont;
+		TreeBreak* pbreak;
 	};
 };
 

@@ -30,6 +30,9 @@ struct CompileState {
 	unsigned int label_count;
 	unsigned int literal_count;
 	unsigned int return_label;
+	unsigned int top_label;
+	unsigned int bottom_label;
+	unsigned int if_label;
 	FILE* fout;
 };
 

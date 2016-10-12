@@ -5,8 +5,11 @@
 #include "parse.h"
 
 static void parse_if(ParseState*);
+static void parse_else(ParseState*);
 static void parse_while(ParseState*);
 static void parse_function(ParseState*);
+static void parse_continue(ParseState*);
+static void parse_break(ParseState*);
 static void parse_statement(ParseState*);
 static void parse_struct_declaration(ParseState*);
 static void parse_return(ParseState*);
@@ -324,7 +327,7 @@ parse_until(ParseState* P, unsigned int type) {
 	expression->next = NULL;
 	expression->prev = NULL;
 	P->token = P->token->next;
-	for (; P->token->type != type; P->token = P->token->next) {
+	for (; P->token && P->token->type != type; P->token = P->token->next) {
 		if (is_keyword(P)) {
 			parse_error(P, "unexpected keyword '%s' in expression, did you forget a semicolon?", P->token->word);
 		}
@@ -407,6 +410,7 @@ new_node(ParseState* P, NodeType type) {
 		case NODE_IF:
 			node->pif = malloc(sizeof(TreeIf));
 			node->pif->condition = NULL;
+			node->pif->if_type = IF_REG;
 			node->pif->block = malloc(sizeof(TreeBlock));
 			node->pif->block->parent_node = node;
 			node->pif->block->children = NULL;
@@ -446,18 +450,38 @@ new_node(ParseState* P, NodeType type) {
 			node->pret = malloc(sizeof(TreeReturn));
 			node->pret->statement = NULL;
 			break;
+		case NODE_CONTINUE:
+			node->pcont = malloc(sizeof(TreeContinue));
+			break;
+		case NODE_BREAK:
+			node->pbreak = malloc(sizeof(TreeBreak));
+			break;	
 		case NODE_ROOT:
 			break;
 	}
 	return node;
 }
 
+/* handles else and elif */
 static void
 parse_if(ParseState* P) {
 	/* expects to start on token IF */
 	TreeNode* node = new_node(P, NODE_IF);
+	if (P->token->type == TOK_ELIF) {
+		node->pif->if_type = IF_ELIF;
+	}
 	P->token = P->token->next; /* skip to first token of condition */
 	node->pif->condition = parse_until(P, TOK_OPENCURL);	
+	append_to_block(P, node);
+	jump_in(P, node->pif->block);
+}
+
+static void
+parse_else(ParseState* P) {
+	TreeNode* node = new_node(P, NODE_IF);
+	node->pif->if_type = IF_ELSE;
+	P->token = P->token->next->next; /* goto first token in block */
+	node->pif->condition = NULL;
 	append_to_block(P, node);
 	jump_in(P, node->pif->block);
 }
@@ -674,6 +698,20 @@ parse_struct_declaration(ParseState* P) {
 	}
 }
 
+static void
+parse_continue(ParseState* P) {
+	P->token = P->token->next;
+	TreeNode* node = new_node(P, NODE_CONTINUE);
+	append_to_block(P, node);
+}
+
+static void
+parse_break(ParseState* P) {
+	P->token = P->token->next;
+	TreeNode* node = new_node(P, NODE_BREAK);
+	append_to_block(P, node);
+}
+
 ParseState*
 generate_tree(Token* tokens) {
 	
@@ -740,8 +778,18 @@ generate_tree(Token* tokens) {
 		}
 		switch (P->token->type) {
 			case TOK_IF:
+			case TOK_ELIF:
 				parse_if(P);
 				break;	
+			case TOK_ELSE:
+				parse_else(P);
+				break;
+			case TOK_CONTINUE:
+				parse_continue(P);
+				break;
+			case TOK_BREAK:
+				parse_break(P);
+				break;
 			case TOK_WHILE:
 				parse_while(P);
 				break;

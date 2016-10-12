@@ -120,6 +120,7 @@ generate_tokens(const char* filename) {
 				is_string ? TOK_STRING : 
 				!strcmp(buf, "if") ? TOK_IF : 
 				!strcmp(buf, "else") ? TOK_ELSE : 
+				!strcmp(buf, "elif") ? TOK_ELIF :
 				!strcmp(buf, "while") ? TOK_WHILE :
 				!strcmp(buf, "do") ? TOK_DO : 
 				!strcmp(buf, "func") ? TOK_FUNCTION :

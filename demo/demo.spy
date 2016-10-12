@@ -2,6 +2,9 @@ println:	cfunc(format: const byte^, ...) -> null;
 print:		cfunc(format: const byte^, ...) -> null;
 malloc:		cfunc(bytes: int) -> byte^;
 sqrt:		cfunc(n: float) -> float;
+sin:		cfunc(n: float) -> float;
+cos:		cfunc(n: float) -> float;
+tan:		cfunc(n: float) -> float;
 
 Vector2: struct {
 	x: float;
@@ -21,7 +24,7 @@ map: (n: float, a: float, b: float, c: float, d: float) -> float {
 
 /* the function being graphed */
 f: (x: float) -> float {
-	return sqrt(x);
+	return (sin(x / 50) + 1) * 15;
 }
 
 first_char: (str: byte^) -> byte {
@@ -38,6 +41,21 @@ strlen: (str: byte^) -> int {
 	return length;
 }	
 
+strcpy: (dest: byte^, from: byte^) -> int {
+	copied: int;
+
+	copied = 0;
+
+	while ^dest && ^from {
+		^dest = ^from;
+		dest = dest + 1;
+		from = from + 1;
+		copied = copied + 1;
+	}
+
+	return copied;
+}
+
 main: () -> null {
 	
 	calc: Calculator;
@@ -51,10 +69,6 @@ main: () -> null {
 	calc.absolute.y = 30;
 	calc.screen.x = 30;
 	calc.screen.y = 30;
-
-	meme : byte^;
-	meme = "hello";
-	println("first letter of string '%s' is '%c'", meme, first_char(meme));
 
 	println(
 		"graphing:\n\tx: [%f, %f]\n\ty: [%f, %f]",

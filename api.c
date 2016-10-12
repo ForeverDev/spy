@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include "api.h"
 
 void SpyL_initializeStandardLibrary(SpyState* S) {
 	Spy_pushC(S, "println", SpyL_println);
 	Spy_pushC(S, "print", SpyL_print);
+	Spy_pushC(S, "getline", SpyL_getline);
 
 	Spy_pushC(S, "fopen", SpyL_fopen);
 	Spy_pushC(S, "fclose", SpyL_fclose);
@@ -23,6 +25,9 @@ void SpyL_initializeStandardLibrary(SpyState* S) {
 	Spy_pushC(S, "min", SpyL_min);
 	Spy_pushC(S, "max", SpyL_max);
 	Spy_pushC(S, "sqrt", SpyL_sqrt);
+	Spy_pushC(S, "sin", SpyL_sin);
+	Spy_pushC(S, "cos", SpyL_cos);
+	Spy_pushC(S, "tan", SpyL_tan);
 }
 
 static uint32_t
@@ -32,10 +37,40 @@ SpyL_sqrt(SpyState* S) {
 }	
 
 static uint32_t
+SpyL_sin(SpyState* S) {
+	Spy_pushFloat(S, sin(Spy_popFloat(S)));
+	return 1;
+}
+
+static uint32_t
+SpyL_cos(SpyState* S) {
+	Spy_pushFloat(S, cos(Spy_popFloat(S)));
+	return 1;
+}
+
+static uint32_t
+SpyL_tan(SpyState* S) {
+	Spy_pushFloat(S, tan(Spy_popFloat(S)));
+	return 1;
+}
+
+static uint32_t
 SpyL_println(SpyState* S) {
 	SpyL_print(S);
 	fputc('\n', stdout);
 	return 0;
+}
+
+static uint32_t
+SpyL_getline(SpyState* S) {
+	int64_t buf = Spy_popInt(S);
+	int64_t length = Spy_popInt(S);
+	int64_t slen;
+	fgets((char *)&S->memory[buf], length, stdin);
+	slen = strlen((char *)&S->memory[buf]);
+	S->memory[buf + slen - 1] = 0; /* remove newline */
+	Spy_pushInt(S, slen - 1);
+	return 1;
 }
 
 static uint32_t
@@ -153,7 +188,7 @@ uint32_t
 SpyL_malloc(SpyState* S) {
 	SpyMemoryChunk* chunk = (SpyMemoryChunk *)malloc(sizeof(SpyMemoryChunk));
 	if (!chunk) Spy_crash(S, "Out of memory\n");
-	uint64_t size = Spy_popInt(S);
+	int64_t size = Spy_popInt(S);
 
 	/* round chunk->size up to nearest SIZE_PAGE multiple */
 	if (size == 0) chunk->pages = 1;
@@ -198,7 +233,7 @@ SpyL_malloc(SpyState* S) {
 		}
 	}
 
-	Spy_pushInt(S, chunk->vm_address);
+	Spy_pushInt(S, chunk->vm_address <= (START_HEAP + SIZE_MEMORY) ? chunk->vm_address : 0);
 
 	return 0;
 }

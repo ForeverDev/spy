@@ -1,0 +1,64 @@
+let __CFUNC__println "println"
+let __CFUNC__getline "getline"
+let __CFUNC__malloc "malloc"
+let __CFUNC__free "free"
+let __STR__0 "OUT OF MEMORY: %d bytes allocated"
+let __STR__1 "MALLOC CALLED: %d"
+jmp __ENTRY_POINT__
+
+
+__FUNC__main:
+res 3
+lea 1
+ilsave 0
+ ; -----> size=
+lea 2
+ ; -----> 256
+ipush 256
+isave
+ ; -----> length=
+lea 1
+ ; -----> 0
+ipush 0
+isave
+ ; -----> while ( (1)) {
+__LABEL__1:
+ipush 1
+jz __LABEL__2
+ ; -----> buf=
+lea 0
+ ; -----> malloc(size)
+ilload 2
+ccall __CFUNC__malloc, 1
+isave
+ ; -----> length=
+lea 1
+ ; -----> length+size
+ilload 1
+ilload 2
+iadd
+isave
+ ; -----> if ( buf==0) {
+ilload 0
+ipush 0
+icmp
+jz __LABEL__4
+jmp __LABEL__2
+__LABEL__4:
+jmp __LABEL__1
+__LABEL__2:
+ ; -----> println(__STR__0,length)
+ipush __STR__0
+ilload 1
+ccall __CFUNC__println, 2
+ ; -----> println(__STR__1,length/size)
+ipush __STR__1
+ilload 1
+ilload 2
+idiv
+ccall __CFUNC__println, 2
+__LABEL__0:
+iret
+
+__ENTRY_POINT__:
+call __FUNC__main, 0

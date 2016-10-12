@@ -8,6 +8,7 @@ void SpyL_initializeStandardLibrary(SpyState*);
 /* stdio */
 static uint32_t SpyL_println(SpyState*);
 static uint32_t SpyL_print(SpyState*);
+static uint32_t SpyL_getline(SpyState*);
 
 /* file system */
 static uint32_t SpyL_fopen(SpyState*);
@@ -21,7 +22,7 @@ static uint32_t SpyL_ftell(SpyState*);
 static uint32_t SpyL_fseek(SpyState*);
 
 /* memory management */
-uint32_t		SpyL_malloc(SpyState*);
+uint32_t		SpyL_malloc(SpyState*); /* expose to spyre.c */
 static uint32_t SpyL_free(SpyState*);
 static uint32_t	SpyL_exit(SpyState*);
 
@@ -30,5 +31,8 @@ static uint32_t SpyL_max(SpyState*);
 static uint32_t SpyL_min(SpyState*);
 static uint32_t SpyL_map(SpyState*);
 static uint32_t SpyL_sqrt(SpyState*);
+static uint32_t SpyL_sin(SpyState*);
+static uint32_t SpyL_cos(SpyState*);
+static uint32_t SpyL_tan(SpyState*);
 
 #endif

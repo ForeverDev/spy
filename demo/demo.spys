@@ -1,0 +1,391 @@
+let __CFUNC__println "println"
+let __CFUNC__print "print"
+let __CFUNC__malloc "malloc"
+let __CFUNC__sqrt "sqrt"
+let __CFUNC__sin "sin"
+let __CFUNC__cos "cos"
+let __CFUNC__tan "tan"
+let __STR__0 "graphing:\n\tx: [%f, %f]\n\ty: [%f, %f]"
+let __STR__1 ". "
+let __STR__2 "X "
+let __STR__3 ". "
+let __STR__4 "\n"
+jmp __ENTRY_POINT__
+
+
+__FUNC__map:
+res 5
+iarg 0
+ilsave 0
+iarg 1
+ilsave 1
+iarg 2
+ilsave 2
+iarg 3
+ilsave 3
+iarg 4
+ilsave 4
+ ; -----> return (n-a)*(d
+ ; -----> 	-c)/(b-a)
+ ; -----> 	+c
+flload 0
+flload 1
+fsub
+flload 4
+flload 3
+fsub
+fmul
+flload 2
+flload 1
+fsub
+fdiv
+flload 3
+fadd
+jmp __LABEL__0
+__LABEL__0:
+iret
+
+
+
+__FUNC__f:
+res 1
+iarg 0
+ilsave 0
+ ; -----> return (sin(x/50)+
+ ; -----> 	1)*15
+flload 0
+ipush 50
+itof 0
+fdiv
+ccall __CFUNC__sin, 1
+ipush 1
+itof 0
+fadd
+ipush 15
+itof 0
+fmul
+jmp __LABEL__1
+__LABEL__1:
+iret
+
+
+
+__FUNC__first_char:
+res 1
+iarg 0
+ilsave 0
+ ; -----> return ^str
+ilload 0
+cder
+jmp __LABEL__2
+__LABEL__2:
+iret
+
+
+
+__FUNC__strlen:
+res 2
+iarg 0
+ilsave 0
+ ; -----> length=
+lea 1
+ ; -----> 0
+ipush 0
+isave
+ ; -----> while ( ^str) {
+__LABEL__4:
+ilload 0
+cder
+jz __LABEL__5
+ ; -----> length=
+lea 1
+ ; -----> length+1
+ilload 1
+ipush 1
+iadd
+isave
+ ; -----> str=
+lea 0
+ ; -----> str+1
+ilload 0
+ipush 1
+iadd
+isave
+jmp __LABEL__4
+__LABEL__5:
+ ; -----> return length
+ilload 1
+jmp __LABEL__3
+__LABEL__3:
+iret
+
+
+
+__FUNC__strcpy:
+res 3
+iarg 0
+ilsave 0
+iarg 1
+ilsave 1
+ ; -----> copied=
+lea 2
+ ; -----> 0
+ipush 0
+isave
+ ; -----> while ( ^dest&&^from) {
+__LABEL__7:
+ilload 0
+cder
+ilload 1
+cder
+land
+jz __LABEL__8
+ ; -----> ^dest=
+lea 0
+ ; -----> ^from
+ilload 1
+cder
+isave
+ ; -----> dest=
+lea 0
+ ; -----> dest+1
+ilload 0
+ipush 1
+iadd
+isave
+ ; -----> from=
+lea 1
+ ; -----> from+1
+ilload 1
+ipush 1
+iadd
+isave
+ ; -----> copied=
+lea 2
+ ; -----> copied+1
+ilload 2
+ipush 1
+iadd
+isave
+jmp __LABEL__7
+__LABEL__8:
+ ; -----> return copied
+ilload 2
+jmp __LABEL__6
+__LABEL__6:
+iret
+
+
+
+__FUNC__main:
+res 10
+lea 1
+ilsave 0
+ ; -----> calc.pixel.x=
+ilload 0
+icinc 0
+icinc 0
+ ; -----> 0
+ipush 0
+itof 0
+fsave
+ ; -----> calc.pixel.y=
+ilload 0
+icinc 0
+icinc 8
+ ; -----> 0
+ipush 0
+itof 0
+fsave
+ ; -----> calc.absolute.x=
+ilload 0
+icinc 16
+icinc 0
+ ; -----> 200
+ipush 200
+itof 0
+fsave
+ ; -----> calc.absolute.y=
+ilload 0
+icinc 16
+icinc 8
+ ; -----> 30
+ipush 30
+itof 0
+fsave
+ ; -----> calc.screen.x=
+ilload 0
+icinc 32
+icinc 0
+ ; -----> 30
+ipush 30
+itof 0
+fsave
+ ; -----> calc.screen.y=
+ilload 0
+icinc 32
+icinc 8
+ ; -----> 30
+ipush 30
+itof 0
+fsave
+ ; -----> println(__STR__0,0,calc.
+ ; -----> 	absolute.x,0,calc.absolute
+ ; -----> 	.y)
+ipush __STR__0
+ipush 0
+ilload 0
+icinc 16
+icinc 0
+fder
+ipush 0
+ilload 0
+icinc 16
+icinc 8
+fder
+ccall __CFUNC__println, 5
+ ; -----> while ( calc.pixel.x<calc.
+ ; -----> 	screen.x) {
+__LABEL__10:
+ilload 0
+icinc 0
+icinc 0
+fder
+ilload 0
+icinc 32
+icinc 0
+fder
+flt
+jz __LABEL__11
+ ; -----> y_pix=
+lea 8
+ ; -----> f(map(calc.pixel.
+ ; -----> 	x,0,calc.screen.x
+ ; -----> 	,0,calc.absolute.x)
+ ; -----> 	)
+ilload 0
+icinc 0
+icinc 0
+fder
+ipush 0
+ilload 0
+icinc 32
+icinc 0
+fder
+ipush 0
+ilload 0
+icinc 16
+icinc 0
+fder
+itof 3
+itof 1
+call __FUNC__map, 5
+call __FUNC__f, 1
+ftoi 0
+isave
+ ; -----> index=
+lea 9
+ ; -----> calc.screen.y
+ilload 0
+icinc 32
+icinc 8
+fder
+ftoi 0
+isave
+ ; -----> while ( y_pix>0&&y_pix<calc.
+ ; -----> 	screen.y) {
+__LABEL__12:
+ilload 8
+ipush 0
+igt
+ilload 8
+ilload 0
+icinc 32
+icinc 8
+fder
+itof 1
+flt
+itof 1
+land
+jz __LABEL__13
+ ; -----> print(__STR__1)
+ipush __STR__1
+ccall __CFUNC__print, 1
+ ; -----> y_pix=
+lea 8
+ ; -----> y_pix-1
+ilload 8
+ipush 1
+isub
+isave
+ ; -----> index=
+lea 9
+ ; -----> index-1
+ilload 9
+ipush 1
+isub
+isave
+jmp __LABEL__12
+__LABEL__13:
+ ; -----> if ( y_pix<calc.screen.y) {
+ilload 8
+ilload 0
+icinc 32
+icinc 8
+fder
+itof 1
+flt
+jz __LABEL__15
+ ; -----> print(__STR__2)
+ipush __STR__2
+ccall __CFUNC__print, 1
+__LABEL__15:
+ ; -----> while ( index>=(y_pix<calc.screen
+ ; -----> 	.y)) {
+__LABEL__16:
+ilload 9
+ilload 8
+ilload 0
+icinc 32
+icinc 8
+fder
+itof 1
+flt
+itof 1
+fge
+jz __LABEL__17
+ ; -----> print(__STR__3)
+ipush __STR__3
+ccall __CFUNC__print, 1
+ ; -----> index=
+lea 9
+ ; -----> index-1
+ilload 9
+ipush 1
+isub
+isave
+jmp __LABEL__16
+__LABEL__17:
+ ; -----> print(__STR__4)
+ipush __STR__4
+ccall __CFUNC__print, 1
+ ; -----> calc.pixel.x=
+ilload 0
+icinc 0
+icinc 0
+ ; -----> calc.pixel.x+1
+ilload 0
+icinc 0
+icinc 0
+fder
+ipush 1
+itof 0
+fadd
+fsave
+jmp __LABEL__10
+__LABEL__11:
+__LABEL__9:
+iret
+
+__ENTRY_POINT__:
+call __FUNC__main, 0
