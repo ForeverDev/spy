@@ -1,63 +1,309 @@
 let __CFUNC__println "println"
-let __CFUNC__getline "getline"
-let __CFUNC__malloc "malloc"
-let __CFUNC__free "free"
-let __STR__0 "OUT OF MEMORY: %d bytes allocated"
-let __STR__1 "MALLOC CALLED: %d"
+let __CFUNC__print "print"
+let __STR__0 "X "
+let __STR__1 "  "
+let __STR__2 "\n"
 jmp __ENTRY_POINT__
 
 
-__FUNC__main:
-res 3
-lea 1
+__FUNC__map:
+res 5
+iarg 0
 ilsave 0
- ; -----> size=
-lea 2
- ; -----> 256
-ipush 256
-isave
- ; -----> length=
+iarg 1
+ilsave 1
+iarg 2
+ilsave 2
+iarg 3
+ilsave 3
+iarg 4
+ilsave 4
+ ; -----> return (n-a)*(d
+ ; -----> 	-c)/(b-a)
+ ; -----> 	+c
+flload 0
+flload 1
+fsub
+flload 4
+flload 3
+fsub
+fmul
+flload 2
+flload 1
+fsub
+fdiv
+flload 3
+fadd
+jmp __LABEL__0
+__LABEL__0:
+iret
+
+
+
+__FUNC__draw_mandelbrot:
+res 9
+iarg 0
+ilsave 0
+ ; -----> i=
 lea 1
  ; -----> 0
 ipush 0
 isave
- ; -----> while ( (1)) {
-__LABEL__1:
-ipush 1
-jz __LABEL__2
- ; -----> buf=
-lea 0
- ; -----> malloc(size)
-ilload 2
-ccall __CFUNC__malloc, 1
-isave
- ; -----> length=
-lea 1
- ; -----> length+size
+ ; -----> while ( i<data.screen.x) {
+__LABEL__2:
 ilload 1
+ilload 0
+icinc 32
+icinc 0
+fder
+itof 1
+flt
+jz __LABEL__3
+ ; -----> j=
+lea 2
+ ; -----> 0
+ipush 0
+isave
+ ; -----> while ( j<data.screen.y) {
+__LABEL__4:
 ilload 2
+ilload 0
+icinc 32
+icinc 8
+fder
+itof 1
+flt
+jz __LABEL__5
+ ; -----> iter=
+lea 3
+ ; -----> 0
+ipush 0
+isave
+ ; -----> zx=
+lea 6
+ ; -----> 0.0
+fpush 0.0
+fsave
+ ; -----> zy=
+lea 7
+ ; -----> 0.0
+fpush 0.0
+fsave
+ ; -----> cx=
+lea 4
+ ; -----> map(j,0,data.
+ ; -----> 	screen.y,data.min.x
+ ; -----> 	,data.max.x)
+ilload 2
+ipush 0
+ilload 0
+icinc 32
+icinc 8
+fder
+ilload 0
+icinc 0
+icinc 0
+fder
+ilload 0
+icinc 16
+icinc 0
+fder
+itof 4
+itof 3
+call __FUNC__map, 5
+fsave
+ ; -----> cy=
+lea 5
+ ; -----> map(i,0,data.
+ ; -----> 	screen.x,data.min.y
+ ; -----> 	,data.max.y)
+ilload 1
+ipush 0
+ilload 0
+icinc 32
+icinc 0
+fder
+ilload 0
+icinc 0
+icinc 8
+fder
+ilload 0
+icinc 16
+icinc 8
+fder
+itof 4
+itof 3
+call __FUNC__map, 5
+fsave
+ ; -----> while ( zx*zx+zx*zy<
+ ; -----> 	4&&iter<data.iterations) {
+__LABEL__6:
+flload 6
+flload 6
+fmul
+flload 6
+flload 7
+fmul
+fadd
+ipush 4
+itof 0
+flt
+ilload 3
+ilload 0
+icinc 48
+ider
+ilt
+itof 0
+land
+jz __LABEL__7
+ ; -----> tmp=
+lea 8
+ ; -----> 2*zx*zy
+ipush 2
+flload 6
+itof 1
+fmul
+flload 7
+fmul
+fsave
+ ; -----> zx=
+lea 6
+ ; -----> zx*zx-zy*zy+
+ ; -----> 	cx
+flload 6
+flload 6
+fmul
+flload 7
+flload 7
+fmul
+fsub
+flload 4
+fadd
+fsave
+ ; -----> zy=
+lea 7
+ ; -----> tmp+cy
+flload 8
+flload 5
+fadd
+fsave
+ ; -----> iter=
+lea 3
+ ; -----> iter+1
+ilload 3
+ipush 1
 iadd
 isave
- ; -----> if ( buf==0) {
+jmp __LABEL__6
+__LABEL__7:
+ ; -----> if ( iter<data.iterations) {
+ilload 3
 ilload 0
-ipush 0
-icmp
-jz __LABEL__4
-jmp __LABEL__2
-__LABEL__4:
-jmp __LABEL__1
-__LABEL__2:
- ; -----> println(__STR__0,length)
+icinc 48
+ider
+ilt
+jz __LABEL__9
+ ; -----> print(__STR__0)
 ipush __STR__0
-ilload 1
-ccall __CFUNC__println, 2
- ; -----> println(__STR__1,length/size)
+ccall __CFUNC__print, 1
+jmp __LABEL__8
+__LABEL__9:
+ ; -----> else {
+ ; -----> print(__STR__1)
 ipush __STR__1
-ilload 1
+ccall __CFUNC__print, 1
+__LABEL__8:
+ ; -----> j=
+lea 2
+ ; -----> j+1
 ilload 2
-idiv
-ccall __CFUNC__println, 2
-__LABEL__0:
+ipush 1
+iadd
+isave
+jmp __LABEL__4
+__LABEL__5:
+ ; -----> print(__STR__2)
+ipush __STR__2
+ccall __CFUNC__print, 1
+ ; -----> i=
+lea 1
+ ; -----> i+1
+ilload 1
+ipush 1
+iadd
+isave
+jmp __LABEL__2
+__LABEL__3:
+__LABEL__1:
+iret
+
+
+
+__FUNC__main:
+res 8
+lea 1
+ilsave 0
+ ; -----> data.min.x=
+ilload 0
+icinc 0
+icinc 0
+ ; -----> 0-2
+ipush 0
+ipush 2
+isub
+itof 0
+fsave
+ ; -----> data.max.x=
+ilload 0
+icinc 16
+icinc 0
+ ; -----> 1
+ipush 1
+itof 0
+fsave
+ ; -----> data.min.y=
+ilload 0
+icinc 0
+icinc 8
+ ; -----> 0-1.5
+ipush 0
+fpush 1.5
+itof 1
+fsub
+fsave
+ ; -----> data.max.y=
+ilload 0
+icinc 16
+icinc 8
+ ; -----> 1.5
+fpush 1.5
+fsave
+ ; -----> data.screen.x=
+ilload 0
+icinc 32
+icinc 0
+ ; -----> 50
+ipush 50
+itof 0
+fsave
+ ; -----> data.screen.y=
+ilload 0
+icinc 32
+icinc 8
+ ; -----> 50
+ipush 50
+itof 0
+fsave
+ ; -----> data.iterations=
+ilload 0
+icinc 48
+ ; -----> 100
+ipush 100
+isave
+ ; -----> draw_mandelbrot(data)
+ilload 0
+call __FUNC__draw_mandelbrot, 1
+__LABEL__11:
 iret
 
 __ENTRY_POINT__:

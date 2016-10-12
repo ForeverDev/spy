@@ -1,0 +1,81 @@
+println: cfunc(format: byte^, ...) -> null;
+print:   cfunc(format: byte^, ...) -> null;
+
+Vector2: struct {
+	x: float;
+	y: float;
+}
+
+FractalData: struct {
+	min: Vector2;
+	max: Vector2;
+	screen: Vector2;
+	iterations: int;
+}
+
+/* maps (n) from range [a, b] to range [c, d] */
+map: (n: float, a: float, b: float, c: float, d: float) -> float {
+	return (n - a) * (d - c) / (b - a) + c;
+}
+
+draw_mandelbrot: (data: FractalData) -> null {
+	i: int;
+	j: int;
+	iter: int;
+	cx: float;
+	cy: float;
+	zx: float;
+	zy: float;
+	tmp: float;
+	
+	i = 0;
+
+	while i < data.screen.x {
+		j = 0;
+		while j < data.screen.y {
+			iter = 0;
+			zx = 0.0;
+			zy = 0.0;
+			/* cx and cy are swapped */
+			cx = map(j, 0, data.screen.y, data.min.x, data.max.x);
+			cy = map(i, 0, data.screen.x, data.min.y, data.max.y);
+			while zx*zx + zx*zy < 4 && iter < data.iterations {
+				tmp = 2*zx*zy;
+				zx = zx*zx - zy*zy + cx;
+				zy = tmp + cy;
+				iter = iter + 1;
+			}
+			if iter < data.iterations {
+				print("X ");
+			} else {
+				print("  ");
+			}
+			j = j + 1;
+		}
+		print("\n");
+		i = i + 1;
+	}
+}
+
+main: () -> null {
+	
+	data: FractalData;
+	
+	/* min and max X */
+	data.min.x = 0 - 2;
+	data.max.x = 1;
+
+	/* min and max Y */
+	data.min.y = 0 - 1.5;
+	data.max.y = 1.5;
+	
+	/* screen dimensions (pixels) */	
+	data.screen.x = 50;
+	data.screen.y = 50;
+
+	/* max number of iterations */
+	data.iterations = 100;
+
+	draw_mandelbrot(data);
+	
+}

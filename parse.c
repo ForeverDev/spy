@@ -35,7 +35,8 @@ static TreeDatatype* parse_datatype(ParseState*);
 
 static const char* keywords[32] = {
 	"func", "if", "while", "for", "do",
-	"break", "continue", "return"
+	"break", "continue", "return", "else",
+	"elif"
 };
 
 static void
@@ -49,7 +50,11 @@ parse_error(ParseState* P, const char* format, ...) {
 	}
 	printf(">\n\n\n*** SPYRE COMPILE-TIME ERROR ***\n\nMESSAGE:  ");
 	vprintf(format, args);
-	printf("\nLINE:     %d\n\n\n<", P->token->line);
+	if (P->token) {
+		printf("\nLINE:     %d\n\n\n<", P->token->line);
+	} else {
+		printf("\nLINE:     N/A\n\n\n<");
+	}
 	for (int i = 0; i < 40; i++) {
 		fputc('-', stdout);	
 	}
@@ -328,14 +333,17 @@ parse_until(ParseState* P, unsigned int type) {
 	expression->prev = NULL;
 	P->token = P->token->next;
 	for (; P->token && P->token->type != type; P->token = P->token->next) {
-		if (is_keyword(P)) {
-			parse_error(P, "unexpected keyword '%s' in expression, did you forget a semicolon?", P->token->word);
+		if (is_keyword(P) || P->token->type == TOK_OPENCURL || P->token->type == TOK_CLOSECURL) {
+			parse_error(P, "unexpected '%s' in expression - did you forget a semicolon?", P->token->word);
 		}
 		Token* copy = malloc(sizeof(Token));
 		memcpy(copy, P->token, sizeof(Token));
 		copy->next = NULL;
 		copy->prev = NULL;
 		string_token(expression, copy);
+	}
+	if (!P->token) {
+		parse_error(P, "unexpected EOF while parsing expression - did you forget a semicolon?");
 	}
 	P->token = P->token->next;
 	return expression;
