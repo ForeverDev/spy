@@ -29,17 +29,15 @@ draw_mandelbrot: (data: FractalData) -> null {
 	tmp: float;
 	
 	i = 0;
-
-	while i < data.screen.x {
-		j = 0;
-		while j < data.screen.y {
-			iter = 0;
+	
+	for i = 0; i < data.screen.x; i = i + 1; {
+		for j = 0; j < data.screen.y; j = j + 1; {
+			/* cx and cy are swapped */
 			zx = 0.0;
 			zy = 0.0;
-			/* cx and cy are swapped */
 			cx = map(j, 0, data.screen.y, data.min.x, data.max.x);
 			cy = map(i, 0, data.screen.x, data.min.y, data.max.y);
-			while zx*zx + zx*zy < 4 && iter < data.iterations {
+			for iter = 0; (zx*zx + zy*zy < 4) && (iter < data.iterations); iter = iter + 1; {
 				tmp = 2*zx*zy;
 				zx = zx*zx - zy*zy + cx;
 				zy = tmp + cy;
@@ -50,10 +48,8 @@ draw_mandelbrot: (data: FractalData) -> null {
 			} else {
 				print("  ");
 			}
-			j = j + 1;
 		}
 		print("\n");
-		i = i + 1;
 	}
 }
 
@@ -75,7 +71,8 @@ main: () -> null {
 
 	/* max number of iterations */
 	data.iterations = 100;
-
+	
+	/* draw it passing the data by reference */
 	draw_mandelbrot(data);
 	
 }

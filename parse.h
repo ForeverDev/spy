@@ -14,6 +14,7 @@ typedef struct TreeBlock TreeBlock;
 typedef struct TreeNode TreeNode;
 typedef struct TreeIf TreeIf;
 typedef struct TreeWhile TreeWhile;
+typedef struct TreeFor TreeFor;
 typedef struct TreeFunction TreeFunction;
 typedef struct TreeRoot TreeRoot;
 typedef struct TreeAssign TreeAssign;
@@ -32,6 +33,7 @@ enum NodeType {
 	NODE_NOTYPE,
 	NODE_IF,
 	NODE_WHILE,
+	NODE_FOR,
 	NODE_FUNCTION,
 	NODE_ASSIGN,
 	NODE_STATEMENT,
@@ -106,6 +108,13 @@ struct TreeWhile {
 	TreeBlock* block;
 };
 
+struct TreeFor {
+	TreeNode* init;
+	Token* condition;
+	TreeNode* statement;
+	TreeBlock* block;
+};
+
 struct TreeFunction {
 	char* identifier;
 	unsigned int nargs;
@@ -152,6 +161,7 @@ struct TreeNode {
 		TreeRoot* proot;
 		TreeContinue* pcont;
 		TreeBreak* pbreak;
+		TreeFor* pfor;
 	};
 };
 

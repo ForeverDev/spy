@@ -89,11 +89,12 @@ static TreeDatatype* raw_datatype(CompileState*, ExpNode*);
 /* generating (etc) functions */
 static void generate_if(CompileState*);
 static void generate_while(CompileState*);
+static void generate_for(CompileState*);
 static void generate_function_decl(CompileState*);
-static void generate_assignment(CompileState*);
-static void generate_statement(CompileState*);
+static void generate_assignment(CompileState*, int);
+static void generate_statement(CompileState*, int);
 static void generate_return(CompileState*);
-static ExpNode* generate_expression(CompileState*, ExpNode*, int);
+static ExpNode* generate_expression(CompileState*, ExpNode*, int, int);
 static ExpNode* postfix_expression(CompileState*, Token*);
 static ExpNode* postfix_function_call(CompileState*);
 
@@ -439,6 +440,7 @@ block_empty(CompileState* C) {
 		C->focus->type == NODE_ROOT ? !C->focus->proot->block->children :
 		C->focus->type == NODE_IF ? !C->focus->pif->block->children :
 		C->focus->type == NODE_WHILE ? !C->focus->pwhile->block->children :
+		C->focus->type == NODE_FOR ? !C->focus->pfor->block->children :
 		C->focus->type == NODE_FUNCTION ? !C->focus->pfunc->block->children : 0
 	);
 }
@@ -497,7 +499,9 @@ advance(CompileState* C) {
 	if (C->ins_stack && C->focus->type == NODE_FUNCTION && !C->focus->pfunc->block) {
 		for (StringList* i = pop_instruction(C); i; i = i->next) {
 			write(C, i->str);
-			write(C, "\n");
+			if (i->str[strlen(i->str) - 1] != '\n') {
+				write(C, "\n");
+			}
 		}
 	}
 
@@ -507,6 +511,7 @@ advance(CompileState* C) {
 		case NODE_IF:
 		case NODE_WHILE:
 		case NODE_FUNCTION:
+		case NODE_FOR:
 			should_dive = !block_empty(C);
 			break;
 	}
@@ -516,6 +521,7 @@ advance(CompileState* C) {
 			C->focus->type == NODE_ROOT ? C->focus->proot->block->children :
 			C->focus->type == NODE_IF ? C->focus->pif->block->children :
 			C->focus->type == NODE_WHILE ? C->focus->pwhile->block->children :
+			C->focus->type == NODE_FOR ? C->focus->pfor->block->children :
 			C->focus->type == NODE_FUNCTION ? C->focus->pfunc->block->children :
 			NULL
 		);
@@ -526,9 +532,12 @@ advance(CompileState* C) {
 			case NODE_IF:
 			case NODE_WHILE:
 			case NODE_FUNCTION:
+			case NODE_FOR:
 				for (StringList* i = pop_instruction(C); i; i = i->next) {
 					write(C, i->str);
-					write(C, "\n");
+					if (i->str[strlen(i->str) - 1] != '\n') {
+						write(C, "\n");
+					}
 				}
 				break;
 		}
@@ -551,7 +560,9 @@ advance(CompileState* C) {
 		if (C->ins_stack) {
 			for (StringList* i = pop_instruction(C); i; i = i->next) {
 				write(C, i->str);
-				write(C, "\n");
+				if (i->str[strlen(i->str) - 1] != '\n') {
+					write(C, "\n");
+				}
 			}
 		}
 	}
@@ -763,7 +774,9 @@ postfix_expression(CompileState* C, Token* expression) {
  * infix expression to a postfix expression 
  */
 static ExpNode* 
-generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
+generate_expression(CompileState* C, ExpNode* expression, int is_lhs, int do_write) {
+
+	void (*writer)(CompileState*, const char*, ...) = do_write ? write : push_instruction;
 
 	/* used for typechecking, finding fields in structs, etc */
 	ExpStack* stack = NULL;
@@ -783,10 +796,10 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				switch (node->pliteral->datatype->type) {
 					case TYPE_INT:
 					case TYPE_STRING:
-						write(C, "ipush %s\n", node->pliteral->word);
+						writer(C, "ipush %s\n", node->pliteral->word);
 						break;
 					case TYPE_FLOAT:
-						write(C, "fpush %s\n", node->pliteral->word);
+						writer(C, "fpush %s\n", node->pliteral->word);
 						break;
 				}
 				ExpNode* push = malloc(sizeof(ExpNode));
@@ -809,7 +822,7 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				int n_call_args = 0;
 				TreeFunction* func = node->pcall->func;
 				/* load function arguments onto the stack */
-				ExpNode* ret = generate_expression(C, node->pcall->argument, 0);
+				ExpNode* ret = generate_expression(C, node->pcall->argument, 0, 1);
 				for (ExpNode* i = ret; i; i = i->next) {
 					n_call_args++;
 				}
@@ -826,9 +839,9 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				TreeDecl* expected_type = func->arguments;
 				while (expected_type && ret) {
 					if (expected_type->datatype->type == TYPE_INT && ret->pdatatype->type == TYPE_FLOAT) {
-						write(C, "ftoi %d\n", n_call_args - at_arg);
+						writer(C, "ftoi %d\n", n_call_args - at_arg);
 					} else if (expected_type->datatype->type == TYPE_FLOAT && ret->pdatatype->type == TYPE_INT) {
-						write(C, "itof %d\n", n_call_args - at_arg);
+						writer(C, "itof %d\n", n_call_args - at_arg);
 					} else if (!identical_types(expected_type->datatype, ret->pdatatype)) {
 						compile_error(C,
 							"passing incorrect type argument (#%d) to function '%s', expected (%s), got (%s)",
@@ -844,9 +857,9 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 				}
 
 				if (func->is_cfunc) {
-					write(C, "ccall " CFUNC_FORMAT ", %d\n", func->identifier, n_call_args); 
+					writer(C, "ccall " CFUNC_FORMAT ", %d\n", func->identifier, n_call_args); 
 				} else {
-					write(C, "call " FUNC_FORMAT ", %d\n", func->identifier, n_call_args);
+					writer(C, "call " FUNC_FORMAT ", %d\n", func->identifier, n_call_args);
 				}
 
 				ExpNode* push = malloc(sizeof(ExpNode));
@@ -880,36 +893,36 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					/* if it's a struct load its address */
 					if (local->datatype->type == TYPE_STRUCT) {
 						if ((is_lhs && local->datatype->ptr_level >= 1) || next_ampersand) {
-							write(C, "lea %d\n", local->offset);
+							writer(C, "lea %d\n", local->offset);
 						} else {
-							write(C, "ilload %d\n", local->offset);	
+							writer(C, "ilload %d\n", local->offset);	
 						}
 					/* otherwise load its value */
 					} else {
 						/* next_ampersand cancels a dereference, so does is_lhs */
 						if (next_ampersand && local->datatype->ptr_level <= 0) {
-							write(C, "lea %d\n", local->offset);
+							writer(C, "lea %d\n", local->offset);
 						} else {
 							switch (local->datatype->type) {
 								case TYPE_INT:
 									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
-										write(C, "lea %d\n", local->offset);
+										writer(C, "lea %d\n", local->offset);
 									} else {
-										write(C, "ilload %d\n", local->offset);
+										writer(C, "ilload %d\n", local->offset);
 									}
 									break;
 								case TYPE_BYTE:
 									if (is_lhs) {
-										write(C, "lea %d\n", local->offset);
+										writer(C, "lea %d\n", local->offset);
 									} else {
-										write(C, "ilload %d\n", local->offset);
+										writer(C, "ilload %d\n", local->offset);
 									}
 									break;
 								case TYPE_FLOAT:
 									if (is_lhs && local->datatype->ptr_level <= 0 && !last_der) {
-										write(C, "lea %d\n", local->offset);	
+										writer(C, "lea %d\n", local->offset);	
 									} else {
-										write(C, "flload %d\n", local->offset);
+										writer(C, "flload %d\n", local->offset);
 									}
 									break;
 							}
@@ -978,10 +991,10 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						if (!strcmp(i->identifier, pop[0]->pidentifier->word)) {
 							char prefix = i->datatype->type == TYPE_FLOAT ? 'f' : 'i';
 							push->pdatatype = copy_datatype(i->datatype);
-							write(C, "icinc %d\n", i->offset * 8);
+							writer(C, "icinc %d\n", i->offset * 8);
 							/* don't dereference if its lhs, ampersand next, or a struct */
 							if (!is_lhs && !next_ampersand && i->datatype->type != TYPE_STRUCT) {
-								write(C, "%cder\n", prefix);
+								writer(C, "%cder\n", prefix);
 							}
 							break;
 						}
@@ -1010,22 +1023,22 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						}
 						switch (newtype->type) {
 							case TYPE_BYTE:
-								write(C, "cder\n");
+								writer(C, "cder\n");
 								break;
 							case TYPE_INT:
-								write(C, "ider\n");
+								writer(C, "ider\n");
 								break;
 							case TYPE_FLOAT:
-								write(C, "fder\n");
+								writer(C, "fder\n");
 								break;
 							default:
 								/* if we're assigning to a single struct pointer (LHS),
 								 * DEREFERENCE TWICE!
 								 */
 								if (is_lhs && newtype->type == TYPE_STRUCT) {
-									write(C, "ider\n");	
+									writer(C, "ider\n");	
 								}
-								write(C, "ider\n");
+								writer(C, "ider\n");
 								break;
 						}
 						pop[0]->pdatatype = newtype;
@@ -1037,10 +1050,10 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 					TreeDatatype* b = raw_datatype(C, pop[1]);
 					if (a->type == TYPE_INT && b->type == TYPE_FLOAT) {
 						a->type = TYPE_FLOAT;
-						write(C, "itof 0\n");
+						writer(C, "itof 0\n");
 					} else if (a->type == TYPE_FLOAT && b->type == TYPE_INT) {
 						b->type = TYPE_FLOAT;
-						write(C, "itof 1\n");
+						writer(C, "itof 1\n");
 					} if (!identical_types(a, b)) {
 						compile_error(C,
 							"attempt to perform arithmetic on non-matching types '%s' and '%s'",
@@ -1073,45 +1086,45 @@ generate_expression(CompileState* C, ExpNode* expression, int is_lhs) {
 						push->pdatatype = a;
 					}
 					if (b->type != TYPE_BYTE && mul_size && (node->poperator->type == TOK_PLUS || node->poperator->type == TOK_HYPHON)) {
-						write(C, "ipush %d\nimul ; ----> pointer arithmetic\n", mul_size);
+						writer(C, "ipush %d\nimul ; ----> pointer arithmetic\n", mul_size);
 					}
 					push->next = NULL;
 					/* A and B are identical, push back */
 					switch (node->poperator->type) {
 						case TOK_PLUS:
-							write(C, "%cadd\n", prefix);
+							writer(C, "%cadd\n", prefix);
 							break;
 						case TOK_HYPHON:
-							write(C, "%csub\n", prefix);
+							writer(C, "%csub\n", prefix);
 							break;
 						case TOK_ASTER:
-							write(C, "%cmul\n", prefix);
+							writer(C, "%cmul\n", prefix);
 							break;
 						case TOK_FORSLASH:
-							write(C, "%cdiv\n", prefix);
+							writer(C, "%cdiv\n", prefix);
 							break;
 						case TOK_GT:
-							write(C, "%cgt\n", prefix);
+							writer(C, "%cgt\n", prefix);
 							break;
 						case TOK_GE:
-							write(C, "%cge\n", prefix);
+							writer(C, "%cge\n", prefix);
 							break;
 						case TOK_LT:
-							write(C, "%clt\n", prefix);
+							writer(C, "%clt\n", prefix);
 							break;
 						case TOK_LE:
-							write(C, "%cle\n", prefix);
+							writer(C, "%cle\n", prefix);
 							break;
 						case TOK_EQ:
-							write(C, "%ccmp\n", prefix);
+							writer(C, "%ccmp\n", prefix);
 							break;
 						case TOK_LOGAND:
 							push->pdatatype->type = TYPE_INT;
-							write(C, "land\n");
+							writer(C, "land\n");
 							break;
 						case TOK_LOGOR:
 							push->pdatatype->type = TYPE_INT;
-							write(C, "lor\n");
+							writer(C, "lor\n");
 							break;
 					}
 					exp_push(&stack, push);
@@ -1151,12 +1164,12 @@ generate_if(CompileState* C) {
 			break;
 	}
 	if (C->focus->pif->if_type != IF_ELSE && C->focus->next && C->focus->next->type == NODE_IF) {
-		generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0);
+		generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0, 1);
 		write(C, JZ_LABEL "\n", label);
 		push_instruction(C, JMP_LABEL, C->if_label);
 		push_instruction(C, DEF_LABEL, label);
 	} else if (C->focus->pif->if_type == IF_REG) {
-		generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0);
+		generate_expression(C, postfix_expression(C, C->focus->pif->condition), 0, 1);
 		write(C, JZ_LABEL "\n", label);
 		push_instruction(C, DEF_LABEL, label);
 	} else {
@@ -1175,8 +1188,44 @@ generate_while(CompileState* C) {
 	token_line(C, C->focus->pass->lhs);
 	write(C, ") {\n");
 	write(C, DEF_LABEL "\n", top_label);
-	generate_expression(C, postfix_expression(C, C->focus->pwhile->condition), 0);
+	generate_expression(C, postfix_expression(C, C->focus->pwhile->condition), 0, 1);
 	write(C, JZ_LABEL "\n", bottom_label);
+	push_instruction(C, JMP_LABEL, top_label);
+	push_instruction(C, DEF_LABEL, bottom_label);
+}
+
+static void
+generate_for(CompileState* C) {
+	TreeNode* save = C->focus;
+	C->focus = save->pfor->init;
+	if (C->focus) {
+		switch (C->focus->type) {
+			case NODE_ASSIGN:
+				generate_assignment(C, 1);
+				break;
+			case NODE_STATEMENT:
+				generate_statement(C, 1);
+				break;
+		}
+	}
+	unsigned int top_label = C->label_count++;
+	unsigned int bottom_label = C->label_count++;
+	write(C, DEF_LABEL "\n", top_label);
+	C->focus = save;
+	generate_expression(C, postfix_expression(C, C->focus->pfor->condition), 0, 1);
+	write(C, JZ_LABEL "\n", bottom_label);
+	C->focus = C->focus->pfor->statement;
+	if (C->focus) {
+		switch (C->focus->type) {
+			case NODE_ASSIGN:
+				generate_assignment(C, 0);
+				break;
+			case NODE_STATEMENT:
+				generate_statement(C, 0);
+				break;
+		}
+	}
+	C->focus = save;
 	push_instruction(C, JMP_LABEL, top_label);
 	push_instruction(C, DEF_LABEL, bottom_label);
 }
@@ -1215,15 +1264,22 @@ generate_function_decl(CompileState* C) {
 }
 
 static void
-generate_assignment(CompileState* C) {
+generate_assignment(CompileState* C, int do_write) {
+
+	void (*writer)(CompileState*, const char*, ...) = do_write ? write : push_instruction;
+
+	/*
 	comment(C, "");
 	token_line(C, C->focus->pass->lhs);
-	write(C, "=\n");
-	ExpNode* lhs = generate_expression(C, postfix_expression(C, C->focus->pass->lhs), 1);
+	writer(C, "=\n");
+	*/
+	ExpNode* lhs = generate_expression(C, postfix_expression(C, C->focus->pass->lhs), 1, do_write);
+	/*
 	comment(C, "");
 	token_line(C, C->focus->pass->rhs);
-	write(C, "\n");
-	ExpNode* rhs = generate_expression(C, postfix_expression(C, C->focus->pass->rhs), 0);
+	writer(C, "\n");
+	*/
+	ExpNode* rhs = generate_expression(C, postfix_expression(C, C->focus->pass->rhs), 0, do_write);
 
 	/* typecheck */
 	if (!(lhs->type == EXP_DATATYPE && rhs->type == EXP_DATATYPE)) {
@@ -1232,9 +1288,9 @@ generate_assignment(CompileState* C) {
 	
 	/* implicit cast if needed */
 	if (lhs->pdatatype->type == TYPE_FLOAT && rhs->pdatatype->type == TYPE_INT) {
-		write(C, "itof 0\n");
+		writer(C, "itof 0\n");
 	} else if (lhs->pdatatype->type == TYPE_INT && rhs->pdatatype->type == TYPE_FLOAT) {
-		write(C, "ftoi 0\n");	
+		writer(C, "ftoi 0\n");	
 	} else if (!identical_types(lhs->pdatatype, rhs->pdatatype)) {
 		compile_error(C,
 			"attempt to assign '%s' to '%s'",
@@ -1244,18 +1300,18 @@ generate_assignment(CompileState* C) {
 	}
 	
 	if (lhs->pdatatype->type == TYPE_FLOAT) {
-		write(C, "fsave\n");
+		writer(C, "fsave\n");
 	} else {
-		write(C, "isave\n");
+		writer(C, "isave\n");
 	}
 }
 
 static void
-generate_statement(CompileState* C) {
+generate_statement(CompileState* C, int do_write) {
 	comment(C, "");
 	token_line(C, C->focus->pstate->statement);
 	write(C, "\n");
-	generate_expression(C, postfix_expression(C, C->focus->pstate->statement), 0);
+	generate_expression(C, postfix_expression(C, C->focus->pstate->statement), 0, do_write);
 }
 
 static void
@@ -1263,7 +1319,7 @@ generate_return(CompileState* C) {
 	comment(C, "return ");
 	token_line(C, C->focus->pret->statement);
 	write(C, "\n");
-	ExpNode* ret = generate_expression(C, postfix_expression(C, C->focus->pret->statement), 0);
+	ExpNode* ret = generate_expression(C, postfix_expression(C, C->focus->pret->statement), 0, 1);
 	if (C->func->return_type->type == TYPE_INT && ret->pdatatype->type == TYPE_FLOAT) {
 		write(C, "ftoi 0\n");
 	} else if (C->func->return_type->type == TYPE_FLOAT && ret->pdatatype->type == TYPE_INT) {
@@ -1334,14 +1390,17 @@ generate_bytecode(ParseState* P, const char* fout_name) {
 			case NODE_WHILE:
 				generate_while(C);
 				break;
+			case NODE_FOR:
+				generate_for(C);
+				break;
 			case NODE_FUNCTION:
 				generate_function_decl(C);
 				break;
 			case NODE_ASSIGN:
-				generate_assignment(C);
+				generate_assignment(C, 1);
 				break;
 			case NODE_STATEMENT:
-				generate_statement(C);
+				generate_statement(C, 1);
 				break;
 			case NODE_RETURN:
 				generate_return(C);
