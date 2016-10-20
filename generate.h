@@ -6,6 +6,7 @@
 typedef struct CompileState CompileState;
 typedef struct InsStack InsStack;
 typedef struct StringList StringList;
+typedef void (*writer)(CompileState*, const char*, ...);
 
 struct StringList {
 	char* str;
@@ -26,6 +27,7 @@ struct CompileState {
 	TreeFunction* func; /* current function being generated */
 	TreeStruct* defined_types;
 	InsStack* ins_stack;
+	writer target;
 	unsigned int depth;
 	unsigned int label_count;
 	unsigned int literal_count;

@@ -259,7 +259,7 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 		&&vret, &&dbon, &&dboff, &&dbds, &&cjnz,
 		&&cjz, &&cjmp, &&ilnsave, &&ilnload,
 		&&flload, &&flsave, &&ftoi, &&itof,
-		&&fder, &&fsave
+		&&fder, &&fsave, &&lnot
 	};
 
 	int total = 0;
@@ -642,6 +642,10 @@ Spy_execute(const char* filename, uint32_t option_flags, int argc, char** argv) 
 	fsave:
 	b = Spy_popFloat(&S); /* pop value */
 	Spy_saveFloat(&S, &S.memory[Spy_popInt(&S)], b);
+	goto dispatch;
+
+	lnot:
+	Spy_pushInt(&S, !Spy_popInt(&S));
 	goto dispatch;
 
 	done:
